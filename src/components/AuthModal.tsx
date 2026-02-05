@@ -8,6 +8,7 @@ interface Props {
 export default function AuthModal({ onAuth }: Props) {
   const [token, setTokenValue] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,6 +16,8 @@ export default function AuthModal({ onAuth }: Props) {
       setError('Please enter a token');
       return;
     }
+    setLoading(true);
+    setError('');
     setToken(token.trim());
     // Test the token
     try {
@@ -22,12 +25,14 @@ export default function AuthModal({ onAuth }: Props) {
         headers: { Authorization: `Bearer ${token.trim()}` },
       });
       if (!res.ok) {
-        setError('Invalid token');
+        setLoading(false);
+        setError(`Invalid token (${res.status})`);
         return;
       }
       onAuth();
-    } catch {
-      setError('Connection failed');
+    } catch (err: unknown) {
+      setLoading(false);
+      setError(`Connection failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
@@ -55,9 +60,10 @@ export default function AuthModal({ onAuth }: Props) {
           {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
           <button
             type="submit"
-            className="w-full mt-4 bg-gray-900 text-white py-3 rounded-xl text-sm font-medium hover:bg-gray-800 transition"
+            disabled={loading}
+            className="w-full mt-4 bg-gray-900 text-white py-3 rounded-xl text-sm font-medium hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Connect
+            {loading ? 'Connecting...' : 'Connect'}
           </button>
         </form>
       </div>
