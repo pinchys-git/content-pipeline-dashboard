@@ -25,7 +25,7 @@ export default function ContentDetailPage() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    fetchContentDetail(Number(id))
+    fetchContentDetail(id!)
       .then(async (data) => {
         setContent(data.content);
         setClaims(data.claims || []);
@@ -150,7 +150,7 @@ function ClaimsTab({ claims }: { claims: Claim[] }) {
                 )}
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-sm font-medium text-gray-900 tabular-nums">{Math.round(claim.confidence * 100)}%</div>
+                <div className="text-sm font-medium text-gray-900 tabular-nums">{Math.round((claim.confidence ?? 0) * 100)}%</div>
                 <div className="text-xs text-gray-400">confidence</div>
               </div>
             </div>
@@ -171,8 +171,8 @@ function SourcesTab({ sources }: { sources: Source[] }) {
           <div key={source.id} className="border border-gray-100 rounded-lg p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline">
-                  {source.title || source.url}
+                <a href={source.url || undefined} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline">
+                  {source.title || source.url || 'Unknown source'}
                 </a>
                 {source.author && <span className="text-xs text-gray-400 ml-2">by {source.author}</span>}
                 {source.snippet && <p className="text-xs text-gray-500 mt-1">{source.snippet}</p>}
@@ -193,8 +193,8 @@ function TracesTab({ traces }: { traces: Trace[] }) {
   if (traces.length === 0) return <EmptyState title="No traces" description="No pipeline traces found for this content" />;
 
   const sortedTraces = [...traces].sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
-  const totalTokens = traces.reduce((s, t) => s + t.total_tokens, 0);
-  const totalLatency = traces.reduce((s, t) => s + t.latency_ms, 0);
+  const totalTokens = traces.reduce((s, t) => s + (t.total_tokens || 0), 0);
+  const totalLatency = traces.reduce((s, t) => s + (t.latency_ms || 0), 0);
   const totalCost = traces.reduce((s, t) => s + (t.estimated_cost_usd || 0), 0);
 
   return (
@@ -237,8 +237,8 @@ function TracesTab({ traces }: { traces: Trace[] }) {
                 </div>
                 <div className="flex flex-wrap gap-4 text-xs text-gray-500">
                   <span>{trace.model}</span>
-                  <span>{trace.total_tokens.toLocaleString()} tokens</span>
-                  <span>{(trace.latency_ms / 1000).toFixed(1)}s</span>
+                  <span>{(trace.total_tokens || 0).toLocaleString()} tokens</span>
+                  <span>{((trace.latency_ms || 0) / 1000).toFixed(1)}s</span>
                   {trace.estimated_cost_usd && <span>${trace.estimated_cost_usd.toFixed(4)}</span>}
                 </div>
                 {trace.error_message && (

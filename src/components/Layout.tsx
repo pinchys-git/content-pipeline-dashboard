@@ -48,7 +48,7 @@ export default function Layout({ onLogout }: Props) {
               <select
                 value={selectedSite?.id || ''}
                 onChange={(e) => {
-                  const site = sites.find((s) => s.id === Number(e.target.value));
+                  const site = sites.find((s) => s.id === e.target.value);
                   if (site) setSelectedSite(site);
                 }}
                 className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"

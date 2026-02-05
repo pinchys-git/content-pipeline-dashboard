@@ -1,17 +1,17 @@
 export interface Site {
-  id: number;
+  id: string;
   name: string;
   domain: string;
   description: string;
   pipeline_config: string;
   settings: string;
-  active: boolean;
+  active: number;
 }
 
 export interface Topic {
-  id: number;
-  site_id: number;
-  pillar_id: number | null;
+  id: string;
+  site_id: string;
+  pillar_id: string | null;
   title: string;
   description: string;
   angle: string;
@@ -22,31 +22,38 @@ export interface Topic {
   scheduled_at: string | null;
   source_hints: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface Pillar {
-  id: number;
-  site_id: number;
+  id: string;
+  site_id: string;
   name: string;
+  slug: string;
   description: string;
+  keywords: string;
+  priority: number;
+  active: number;
 }
 
 export interface Voice {
-  id: number;
-  site_id: number;
+  id: string;
+  site_id: string;
   name: string;
   description: string;
+  voice_guide: string;
+  active: number;
 }
 
 export interface Content {
-  id: number;
-  site_id: number;
-  topic_id: number | null;
-  voice_profile_id: number | null;
+  id: string;
+  site_id: string;
+  topic_id: string | null;
+  voice_profile_id: string | null;
   stage: string;
   run_id: string | null;
-  title: string;
-  slug: string;
+  title: string | null;
+  slug: string | null;
   excerpt: string | null;
   summary: string | null;
   draft_md: string | null;
@@ -60,7 +67,7 @@ export interface Content {
   reading_time: number | null;
   quality_score: number | null;
   platforms: string | null;
-  requires_review: boolean;
+  requires_review: number;
   scheduled_publish_at: string | null;
   published_at: string | null;
   published_urls: string | null;
@@ -69,21 +76,21 @@ export interface Content {
 }
 
 export interface Claim {
-  id: number;
-  content_id: number;
+  id: string;
+  content_id: string;
   claim_text: string;
   context: string | null;
   status: 'pending' | 'verified' | 'disputed' | 'unverifiable';
-  confidence: number;
+  confidence: number | null;
   verification_notes: string | null;
 }
 
 export interface Source {
-  id: number;
-  content_id: number;
-  claim_id: number | null;
-  url: string;
-  title: string;
+  id: string;
+  content_id: string;
+  claim_id: string | null;
+  url: string | null;
+  title: string | null;
   author: string | null;
   published_date: string | null;
   snippet: string | null;
@@ -92,17 +99,17 @@ export interface Source {
 }
 
 export interface Trace {
-  id: number;
+  id: string;
   run_id: string;
-  content_id: number;
+  content_id: string | null;
   stage: string;
   provider: string;
   model: string;
   system_prompt_hash: string | null;
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
-  latency_ms: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  latency_ms: number | null;
   status: string;
   error_message: string | null;
   estimated_cost_usd: number | null;

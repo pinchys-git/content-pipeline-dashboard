@@ -13,8 +13,8 @@ export default function TopicsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [runningTopic, setRunningTopic] = useState<number | null>(null);
-  const [runResult, setRunResult] = useState<{ topicId: number; runId: string } | null>(null);
+  const [runningTopic, setRunningTopic] = useState<string | null>(null);
+  const [runResult, setRunResult] = useState<{ topicId: string; runId: string } | null>(null);
 
   useEffect(() => {
     if (!selectedSite) return;
@@ -32,7 +32,7 @@ export default function TopicsPage() {
     if (!selectedSite) return;
     setRunningTopic(topic.id);
     try {
-      const result = await runPipeline(topic.id, selectedSite.id);
+      const result = await runPipeline(topic.id, selectedSite!.id);
       setRunResult({ topicId: topic.id, runId: result.run_id });
     } catch (e: any) {
       alert(`Pipeline error: ${e.message}`);
@@ -124,7 +124,7 @@ export default function TopicsPage() {
   );
 }
 
-function NewTopicForm({ siteId, pillars, onCreated }: { siteId: number; pillars: Pillar[]; onCreated: (topic: Topic) => void }) {
+function NewTopicForm({ siteId, pillars, onCreated }: { siteId: string; pillars: Pillar[]; onCreated: (topic: Topic) => void }) {
   const [form, setForm] = useState({
     title: '',
     description: '',
@@ -144,12 +144,26 @@ function NewTopicForm({ siteId, pillars, onCreated }: { siteId: number; pillars:
     setSubmitting(true);
     setError('');
     try {
-      const topic = await createTopic(siteId, {
+      const result = await createTopic(siteId, {
         ...form,
-        pillar_id: form.pillar_id ? Number(form.pillar_id) : undefined,
-        source_hints: form.source_hints || undefined,
+        pillar_id: form.pillar_id || undefined,
+        source_hints: form.source_hints ? JSON.stringify(form.source_hints.split('\n').filter(Boolean)) : undefined,
       });
-      onCreated(topic);
+      // Construct a minimal topic for the list
+      onCreated({
+        id: result.id,
+        site_id: siteId,
+        pillar_id: form.pillar_id || null,
+        title: form.title,
+        description: form.description,
+        angle: form.angle,
+        target_keywords: '[]',
+        content_type: form.content_type,
+        status: form.status || 'idea',
+        priority: form.priority,
+        scheduled_at: null,
+        source_hints: form.source_hints || '[]',
+      });
     } catch (e: any) {
       setError(e.message);
     } finally {

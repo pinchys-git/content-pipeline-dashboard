@@ -46,34 +46,34 @@ export async function fetchSites(): Promise<Site[]> {
 }
 
 // Topics
-export async function fetchTopics(siteId: number): Promise<Topic[]> {
+export async function fetchTopics(siteId: string): Promise<Topic[]> {
   const data = await apiFetch<{ topics: Topic[] }>(`/api/sites/${siteId}/topics`);
   return data.topics;
 }
 
 // Pillars
-export async function fetchPillars(siteId: number): Promise<Pillar[]> {
+export async function fetchPillars(siteId: string): Promise<Pillar[]> {
   const data = await apiFetch<{ pillars: Pillar[] }>(`/api/sites/${siteId}/pillars`);
   return data.pillars;
 }
 
 // Voices
-export async function fetchVoices(siteId: number): Promise<Voice[]> {
+export async function fetchVoices(siteId: string): Promise<Voice[]> {
   const data = await apiFetch<{ voices: Voice[] }>(`/api/sites/${siteId}/voices`);
   return data.voices;
 }
 
 // Content
-export async function fetchContent(siteId?: number, stage?: string, limit = 50): Promise<Content[]> {
+export async function fetchContent(siteId?: string, stage?: string, limit = 50): Promise<Content[]> {
   const params = new URLSearchParams();
-  if (siteId) params.set('site_id', String(siteId));
+  if (siteId) params.set('site_id', siteId);
   if (stage) params.set('stage', stage);
   params.set('limit', String(limit));
   const data = await apiFetch<{ content: Content[] }>(`/api/content?${params}`);
   return data.content;
 }
 
-export async function fetchContentDetail(id: number): Promise<{ content: Content; claims: Claim[]; sources: Source[] }> {
+export async function fetchContentDetail(id: string): Promise<{ content: Content; claims: Claim[]; sources: Source[] }> {
   return apiFetch(`/api/content/${id}`);
 }
 
@@ -83,8 +83,13 @@ export async function fetchTraces(runId: string): Promise<Trace[]> {
   return data.traces;
 }
 
+// Pipeline status
+export async function fetchPipelineStatus(runId: string): Promise<{ content: Content; traces: Trace[] }> {
+  return apiFetch(`/api/pipeline/status/${runId}`);
+}
+
 // Pipeline
-export async function runPipeline(topicId: number, siteId: number): Promise<{ run_id: string; content_id: number; status: string }> {
+export async function runPipeline(topicId: string, siteId: string): Promise<{ run_id: string; content_id: string; status: string }> {
   return apiFetch('/api/pipeline/run', {
     method: 'POST',
     body: JSON.stringify({ topic_id: topicId, site_id: siteId }),
@@ -92,19 +97,18 @@ export async function runPipeline(topicId: number, siteId: number): Promise<{ ru
 }
 
 // Create topic
-export async function createTopic(siteId: number, topic: {
+export async function createTopic(siteId: string, topic: {
   title: string;
-  description: string;
-  angle: string;
-  pillar_id?: number;
+  description?: string;
+  angle?: string;
+  pillar_id?: string;
   content_type: string;
-  status: string;
-  priority: number;
+  status?: string;
+  priority?: number;
   source_hints?: string;
-}): Promise<Topic> {
-  const data = await apiFetch<{ topic: Topic }>(`/api/sites/${siteId}/topics`, {
+}): Promise<{ id: string; success: boolean }> {
+  return apiFetch(`/api/sites/${siteId}/topics`, {
     method: 'POST',
     body: JSON.stringify(topic),
   });
-  return data.topic;
 }

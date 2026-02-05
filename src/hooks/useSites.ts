@@ -29,7 +29,7 @@ export function useSiteProvider() {
       .then((s) => {
         setSites(s);
         const saved = localStorage.getItem('selected_site_id');
-        const match = saved ? s.find((site) => site.id === Number(saved)) : null;
+        const match = saved ? s.find((site) => site.id === saved) : null;
         setSelectedSite(match || s[0] || null);
       })
       .catch((e) => setError(e.message))
@@ -38,7 +38,7 @@ export function useSiteProvider() {
 
   const selectSite = (site: Site) => {
     setSelectedSite(site);
-    localStorage.setItem('selected_site_id', String(site.id));
+    localStorage.setItem('selected_site_id', site.id);
   };
 
   return { sites, selectedSite, setSelectedSite: selectSite, loading, error };

@@ -9,7 +9,7 @@ import EmptyState from '../components/EmptyState';
 
 interface RunGroup {
   runId: string;
-  contentId: number;
+  contentId: string;
   title: string;
   traces: Trace[];
   totalTokens: number;
@@ -47,8 +47,8 @@ export default function RunsPage() {
               contentId: content.id,
               title: content.title || 'Untitled',
               traces: sorted,
-              totalTokens: traces.reduce((s, t) => s + t.total_tokens, 0),
-              totalLatency: traces.reduce((s, t) => s + t.latency_ms, 0),
+              totalTokens: traces.reduce((s, t) => s + (t.total_tokens || 0), 0),
+              totalLatency: traces.reduce((s, t) => s + (t.latency_ms || 0), 0),
               totalCost: traces.reduce((s, t) => s + (t.estimated_cost_usd || 0), 0),
               stages: sorted.map((t) => t.stage),
               status: sorted.every((t) => t.status === 'success') ? 'success' : sorted.some((t) => t.status === 'error') ? 'error' : 'running',
