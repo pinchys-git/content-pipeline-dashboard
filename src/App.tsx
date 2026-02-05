@@ -15,7 +15,7 @@ export default function App() {
   const siteProvider = useSiteProvider();
 
   if (!authed) {
-    return <AuthModal onAuth={() => setAuthed(true)} />;
+    return <AuthModal onAuth={() => { setAuthed(true); siteProvider.reload(); }} />;
   }
 
   if (siteProvider.loading) {

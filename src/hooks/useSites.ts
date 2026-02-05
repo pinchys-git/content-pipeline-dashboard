@@ -8,6 +8,7 @@ interface SiteContextType {
   setSelectedSite: (site: Site) => void;
   loading: boolean;
   error: string | null;
+  reload: () => void;
 }
 
 export const SiteContext = createContext<SiteContextType>({
@@ -16,6 +17,7 @@ export const SiteContext = createContext<SiteContextType>({
   setSelectedSite: () => {},
   loading: false,
   error: null,
+  reload: () => {},
 });
 
 export function useSiteProvider() {
@@ -23,8 +25,19 @@ export function useSiteProvider() {
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  const reload = () => setRetryCount((c) => c + 1);
 
   useEffect(() => {
+    // Don't fetch if no token yet
+    const token = localStorage.getItem('pipeline_token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
     fetchSites()
       .then((s) => {
         setSites(s);
@@ -34,14 +47,14 @@ export function useSiteProvider() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [retryCount]);
 
   const selectSite = (site: Site) => {
     setSelectedSite(site);
     localStorage.setItem('selected_site_id', site.id);
   };
 
-  return { sites, selectedSite, setSelectedSite: selectSite, loading, error };
+  return { sites, selectedSite, setSelectedSite: selectSite, loading, error, reload };
 }
 
 export function useSites() {
