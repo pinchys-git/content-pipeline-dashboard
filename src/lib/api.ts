@@ -1,4 +1,4 @@
-import type { Site, Topic, Pillar, Voice, Content, Claim, Source, Trace, Revision, ReviewMessage, SourceSuggestion } from './types';
+import type { Site, Topic, Pillar, Voice, Content, Claim, Source, Trace, Revision, ReviewMessage, SourceSuggestion, WatchTopic, Idea, IdeaScanRun } from './types';
 
 const BASE_URL = 'https://content-pipeline.roccobot.workers.dev';
 
@@ -179,4 +179,89 @@ export async function createPillar(siteId: string, pillar: { name: string; descr
     method: 'POST',
     body: JSON.stringify({ ...pillar, slug: pillar.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') }),
   });
+}
+
+// Watch Topics
+export async function fetchWatchTopics(siteId: string, includeInactive = false): Promise<WatchTopic[]> {
+  const params = includeInactive ? '?active=false' : '';
+  const data = await apiFetch<{ watch_topics: WatchTopic[] }>(`/api/sites/${siteId}/watch-topics${params}`);
+  return data.watch_topics;
+}
+
+export async function createWatchTopic(siteId: string, topic: {
+  name: string;
+  description?: string;
+  keywords?: string;
+  source_types?: string;
+  scan_interval_hours?: number;
+  max_ideas_per_scan?: number;
+  pillar_id?: string;
+}): Promise<{ id: string; success: boolean }> {
+  return apiFetch(`/api/sites/${siteId}/watch-topics`, {
+    method: 'POST',
+    body: JSON.stringify(topic),
+  });
+}
+
+export async function updateWatchTopic(siteId: string, id: string, updates: Partial<WatchTopic>): Promise<{ success: boolean }> {
+  return apiFetch(`/api/sites/${siteId}/watch-topics/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteWatchTopic(siteId: string, id: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/sites/${siteId}/watch-topics/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// Ideas
+export async function fetchIdeas(siteId: string, filters?: { status?: string; watch_topic_id?: string; min_score?: string; limit?: number }): Promise<Idea[]> {
+  const params = new URLSearchParams();
+  if (filters?.status) params.set('status', filters.status);
+  if (filters?.watch_topic_id) params.set('watch_topic_id', filters.watch_topic_id);
+  if (filters?.min_score) params.set('min_score', filters.min_score);
+  if (filters?.limit) params.set('limit', String(filters.limit));
+  const qs = params.toString();
+  const data = await apiFetch<{ ideas: Idea[] }>(`/api/sites/${siteId}/ideas${qs ? `?${qs}` : ''}`);
+  return data.ideas;
+}
+
+export async function updateIdea(siteId: string, id: string, updates: Partial<Idea>): Promise<{ success: boolean }> {
+  return apiFetch(`/api/sites/${siteId}/ideas/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function approveIdea(siteId: string, id: string): Promise<{ success: boolean; topic_id: string }> {
+  return apiFetch(`/api/sites/${siteId}/ideas/${id}/approve`, {
+    method: 'POST',
+  });
+}
+
+export async function dismissIdea(siteId: string, id: string, reason?: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/sites/${siteId}/ideas/${id}/dismiss`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+// Idea Scans
+export async function triggerIdeaScan(siteId?: string, watchTopicId?: string): Promise<{ scan_runs: number; total_ideas_found: number; total_ideas_stored: number; total_ideas_deduped: number }> {
+  return apiFetch('/api/ideas/scan', {
+    method: 'POST',
+    body: JSON.stringify({ site_id: siteId, watch_topic_id: watchTopicId }),
+  });
+}
+
+export async function fetchScanRuns(siteId?: string, watchTopicId?: string, limit?: number): Promise<IdeaScanRun[]> {
+  const params = new URLSearchParams();
+  if (siteId) params.set('site_id', siteId);
+  if (watchTopicId) params.set('watch_topic_id', watchTopicId);
+  if (limit) params.set('limit', String(limit));
+  const qs = params.toString();
+  const data = await apiFetch<{ scan_runs: IdeaScanRun[] }>(`/api/ideas/scan-runs${qs ? `?${qs}` : ''}`);
+  return data.scan_runs;
 }

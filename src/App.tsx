@@ -10,6 +10,7 @@ import ContentDetailPage from './pages/ContentDetailPage';
 import TopicsPage from './pages/TopicsPage';
 import RunsPage from './pages/RunsPage';
 import ReviewPage from './pages/ReviewPage';
+import IdeasPage from './pages/IdeasPage';
 
 export default function App() {
   const [authed, setAuthed] = useState(hasToken());
@@ -57,6 +58,7 @@ export default function App() {
             <Route path="/content/:id/review" element={<ReviewPage />} />
             <Route path="/topics" element={<TopicsPage />} />
             <Route path="/runs" element={<RunsPage />} />
+            <Route path="/ideas" element={<IdeasPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

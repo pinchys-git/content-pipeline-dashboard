@@ -154,3 +154,61 @@ export interface SourceSuggestion {
   snippet: string;
   relevance: string;
 }
+
+export interface WatchTopic {
+  id: string;
+  site_id: string;
+  name: string;
+  description: string | null;
+  keywords: string;
+  source_types: string;
+  source_config: string;
+  scan_interval_hours: number;
+  last_scanned_at: string | null;
+  max_ideas_per_scan: number;
+  pillar_id: string | null;
+  active: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Idea {
+  id: string;
+  site_id: string;
+  watch_topic_id: string | null;
+  title: string;
+  description: string | null;
+  angle: string | null;
+  source_urls: string;
+  source_snippets: string;
+  relevance_score: number | null;
+  freshness_score: number | null;
+  uniqueness_score: number | null;
+  overall_score: number | null;
+  status: string;
+  dismissed_reason: string | null;
+  topic_id: string | null;
+  pillar_id: string | null;
+  suggested_keywords: string;
+  suggested_content_type: string;
+  suggested_tone: string | null;
+  scan_run_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IdeaScanRun {
+  id: string;
+  site_id: string;
+  watch_topic_id: string | null;
+  status: string;
+  ideas_found: number;
+  ideas_deduped: number;
+  ideas_stored: number;
+  source_types_used: string;
+  error_message: string | null;
+  tokens_used: number;
+  latency_ms: number | null;
+  created_at: string;
+  completed_at: string | null;
+}

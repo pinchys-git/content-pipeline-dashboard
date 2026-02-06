@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: '/content', label: 'Content', icon: '◈' },
   { to: '/topics', label: 'Topics', icon: '◉' },
   { to: '/runs', label: 'Runs', icon: '▸' },
+  { to: '/ideas', label: 'Ideas', icon: '✦' },
 ];
 
 interface Props {

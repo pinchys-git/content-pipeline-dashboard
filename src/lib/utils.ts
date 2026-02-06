@@ -20,6 +20,19 @@ export const TOPIC_STATUS_COLORS: Record<string, { bg: string; text: string }> =
   completed: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
 };
 
+export const IDEA_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  proposed: { bg: 'bg-gray-100', text: 'text-gray-700' },
+  approved: { bg: 'bg-blue-50', text: 'text-blue-700' },
+  dismissed: { bg: 'bg-red-50', text: 'text-red-700' },
+  converted: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
+};
+
+export const SCAN_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  running: { bg: 'bg-yellow-50', text: 'text-yellow-700' },
+  completed: { bg: 'bg-green-50', text: 'text-green-700' },
+  failed: { bg: 'bg-red-50', text: 'text-red-700' },
+};
+
 export const CLAIM_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   verified: { bg: 'bg-green-50', text: 'text-green-700' },
   disputed: { bg: 'bg-red-50', text: 'text-red-700' },
