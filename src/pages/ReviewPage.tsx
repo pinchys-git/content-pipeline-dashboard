@@ -260,10 +260,10 @@ export default function ReviewPage() {
       </div>
 
       {/* Two-panel layout */}
-      <div className="flex gap-4" style={{ minHeight: 'calc(100vh - 200px)' }}>
-        {/* Left Panel: Editor */}
+      <div className="flex gap-4">
+        {/* Left Panel: Editor (scrolls naturally) */}
         <div className="w-[65%] flex flex-col">
-          <div className="bg-white border border-gray-200 rounded-xl flex-1 flex flex-col overflow-hidden">
+          <div className="bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden">
             {/* Toolbar */}
             {editor && <EditorToolbar editor={editor} />}
 
@@ -317,8 +317,8 @@ export default function ReviewPage() {
           </div>
         </div>
 
-        {/* Right Panel: Sidebar */}
-        <div className="w-[35%] bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden">
+        {/* Right Panel: Sidebar (sticky, fits viewport) */}
+        <div className="w-[35%] bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden sticky top-20" style={{ height: 'calc(100vh - 6rem)', maxHeight: 'calc(100vh - 6rem)' }}>
           {/* Tabs */}
           <div className="border-b border-gray-100 px-4 flex gap-0">
             {SIDEBAR_TABS.map((tab) => (
@@ -532,11 +532,12 @@ function ChatTab({
                     {actions.map((a, i) => (
                       <span key={i} className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-full">
                         {a.action === 'rewrite_section' && '🔄 Rewrote section'}
-                        {a.action === 'add_research' && '🔍 Added research'}
+                        {a.action === 'add_research' && '🔍 Researched & updated'}
+                        {a.action === 'needs_research' && '🔬 Research triggered'}
                         {a.action === 'update_claim' && '📋 Updated claim'}
                         {a.action === 'reformat' && '✨ Reformatted'}
                         {a.action === 'update_meta' && '📝 Updated meta'}
-                        {!['rewrite_section', 'add_research', 'update_claim', 'reformat', 'update_meta'].includes(a.action) && `⚡ ${a.action}`}
+                        {!['rewrite_section', 'add_research', 'needs_research', 'update_claim', 'reformat', 'update_meta'].includes(a.action) && `⚡ ${a.action}`}
                       </span>
                     ))}
                   </div>
