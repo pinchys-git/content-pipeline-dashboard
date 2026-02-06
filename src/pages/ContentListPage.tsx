@@ -74,7 +74,7 @@ export default function ContentListPage() {
               {content.map((item) => (
                 <tr
                   key={item.id}
-                  onClick={() => navigate(`/content/${item.id}`)}
+                  onClick={() => navigate(item.stage === 'review' ? `/content/${item.id}/review` : `/content/${item.id}`)}
                   className="hover:bg-gray-50 cursor-pointer transition"
                 >
                   <td className="px-6 py-3.5">

@@ -9,6 +9,7 @@ import ContentListPage from './pages/ContentListPage';
 import ContentDetailPage from './pages/ContentDetailPage';
 import TopicsPage from './pages/TopicsPage';
 import RunsPage from './pages/RunsPage';
+import ReviewPage from './pages/ReviewPage';
 
 export default function App() {
   const [authed, setAuthed] = useState(hasToken());
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/content" element={<ContentListPage />} />
             <Route path="/content/:id" element={<ContentDetailPage />} />
+            <Route path="/content/:id/review" element={<ReviewPage />} />
             <Route path="/topics" element={<TopicsPage />} />
             <Route path="/runs" element={<RunsPage />} />
           </Route>

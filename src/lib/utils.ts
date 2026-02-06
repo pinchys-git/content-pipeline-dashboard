@@ -1,10 +1,11 @@
-export const STAGES = ['research', 'draft', 'verify', 'format', 'review', 'scheduled', 'published'] as const;
+export const STAGES = ['research', 'draft', 'verify', 'format', 'edit', 'review', 'scheduled', 'published'] as const;
 
 export const STAGE_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
   research: { bg: 'bg-blue-50', text: 'text-blue-700', dot: 'bg-blue-500' },
   draft: { bg: 'bg-purple-50', text: 'text-purple-700', dot: 'bg-purple-500' },
   verify: { bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500' },
   format: { bg: 'bg-cyan-50', text: 'text-cyan-700', dot: 'bg-cyan-500' },
+  edit: { bg: 'bg-indigo-50', text: 'text-indigo-700', dot: 'bg-indigo-500' },
   review: { bg: 'bg-yellow-50', text: 'text-yellow-700', dot: 'bg-yellow-500' },
   scheduled: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500' },
   published: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },

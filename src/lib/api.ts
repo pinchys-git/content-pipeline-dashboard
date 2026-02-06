@@ -1,4 +1,4 @@
-import type { Site, Topic, Pillar, Voice, Content, Claim, Source, Trace } from './types';
+import type { Site, Topic, Pillar, Voice, Content, Claim, Source, Trace, Revision, ReviewMessage, SourceSuggestion } from './types';
 
 const BASE_URL = 'https://content-pipeline.roccobot.workers.dev';
 
@@ -106,9 +106,77 @@ export async function createTopic(siteId: string, topic: {
   status?: string;
   priority?: number;
   source_hints?: string;
+  tone?: string;
+  style?: string;
+  target_length?: number;
 }): Promise<{ id: string; success: boolean }> {
   return apiFetch(`/api/sites/${siteId}/topics`, {
     method: 'POST',
     body: JSON.stringify(topic),
+  });
+}
+
+// Review chat
+export async function sendReviewChat(contentId: string, message: string): Promise<{
+  message: string;
+  actions_taken: Array<{ action: string; details: string }>;
+  revision: Revision | null;
+  updated_content: Content | null;
+  concerns: string[];
+}> {
+  return apiFetch(`/api/content/${contentId}/review/chat`, {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+}
+
+// Review messages
+export async function fetchReviewMessages(contentId: string): Promise<ReviewMessage[]> {
+  const data = await apiFetch<{ messages: ReviewMessage[] }>(`/api/content/${contentId}/review/messages`);
+  return data.messages;
+}
+
+// Revisions
+export async function createRevision(contentId: string, updatedMd: string, fieldsChanged?: string[]): Promise<{ revision: Revision; concerns: string[] }> {
+  return apiFetch(`/api/content/${contentId}/revisions`, {
+    method: 'POST',
+    body: JSON.stringify({ updated_md: updatedMd, fields_changed: fieldsChanged }),
+  });
+}
+
+export async function fetchRevisions(contentId: string): Promise<Revision[]> {
+  const data = await apiFetch<{ revisions: Revision[] }>(`/api/content/${contentId}/revisions`);
+  return data.revisions;
+}
+
+// Approve/Reject
+export async function approveContent(contentId: string, targetStage?: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/content/${contentId}/review/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ target_stage: targetStage || 'scheduled' }),
+  });
+}
+
+export async function rejectContent(contentId: string, targetStage: string, feedback: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/content/${contentId}/review/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ target_stage: targetStage, feedback }),
+  });
+}
+
+// Source suggestions
+export async function suggestSources(siteId: string, title: string, description: string): Promise<SourceSuggestion[]> {
+  const data = await apiFetch<{ sources: SourceSuggestion[] }>(`/api/sites/${siteId}/topics/suggest-sources`, {
+    method: 'POST',
+    body: JSON.stringify({ title, description }),
+  });
+  return data.sources;
+}
+
+// Create pillar
+export async function createPillar(siteId: string, pillar: { name: string; description?: string }): Promise<{ id: string; success: boolean }> {
+  return apiFetch(`/api/sites/${siteId}/pillars`, {
+    method: 'POST',
+    body: JSON.stringify({ ...pillar, slug: pillar.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') }),
   });
 }

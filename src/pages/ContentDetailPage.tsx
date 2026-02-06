@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { fetchContentDetail, fetchTraces } from '../lib/api';
 import type { Content, Claim, Source, Trace } from '../lib/types';
@@ -60,8 +60,16 @@ export default function ContentDetailPage() {
       <div className="bg-white border border-gray-200 rounded-xl p-6">
         <div className="flex flex-wrap items-start gap-3 mb-4">
           <StageBadge stage={content.stage} size="md" />
-          {content.requires_review && (
+          {content.requires_review ? (
             <span className="px-2.5 py-1 text-sm rounded-full bg-amber-50 text-amber-700 font-medium">Needs Review</span>
+          ) : null}
+          {content.stage === 'review' && (
+            <Link
+              to={`/content/${content.id}/review`}
+              className="px-4 py-1.5 text-sm font-medium bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition"
+            >
+              ✏ Review Article
+            </Link>
           )}
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{content.title || 'Untitled'}</h1>

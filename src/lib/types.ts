@@ -21,6 +21,9 @@ export interface Topic {
   priority: number;
   scheduled_at: string | null;
   source_hints: string;
+  tone?: string;
+  style?: string;
+  target_length?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -116,4 +119,38 @@ export interface Trace {
   created_at?: string;
 }
 
-export type Stage = 'research' | 'draft' | 'verify' | 'format' | 'review' | 'scheduled' | 'published' | 'failed';
+export type Stage = 'research' | 'draft' | 'verify' | 'format' | 'edit' | 'review' | 'scheduled' | 'published' | 'failed';
+
+export interface Revision {
+  id: string;
+  content_id: string;
+  revision_number: number;
+  changed_by: string;
+  change_type: string;
+  previous_md: string | null;
+  updated_md: string | null;
+  diff_summary: string | null;
+  feedback: string | null;
+  agent_notes: string | null;
+  concerns: string | null;
+  fields_changed: string;
+  created_at?: string;
+}
+
+export interface ReviewMessage {
+  id: string;
+  content_id: string;
+  role: 'human' | 'agent';
+  message: string;
+  actions_taken: string;
+  stage_triggered: string | null;
+  revision_id: string | null;
+  created_at?: string;
+}
+
+export interface SourceSuggestion {
+  url: string;
+  title: string;
+  snippet: string;
+  relevance: string;
+}
