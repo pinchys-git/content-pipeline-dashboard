@@ -6,27 +6,27 @@ interface Props {
 }
 
 export default function AuthModal({ onAuth }: Props) {
-  const [token, setTokenValue] = useState('');
+  const [passphrase, setPassphrase] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token.trim()) {
-      setError('Please enter a token');
+    if (!passphrase.trim()) {
+      setError('Please enter a passphrase');
       return;
     }
     setLoading(true);
     setError('');
-    setToken(token.trim());
-    // Test the token
+    setToken(passphrase.trim());
+    // Test the passphrase
     try {
       const res = await fetch('https://content-pipeline.roccobot.workers.dev/api/sites', {
-        headers: { Authorization: `Bearer ${token.trim()}` },
+        headers: { Authorization: `Bearer ${passphrase.trim()}` },
       });
       if (!res.ok) {
         setLoading(false);
-        setError(`Invalid token (${res.status})`);
+        setError(`Invalid passphrase (${res.status})`);
         return;
       }
       onAuth();
@@ -46,14 +46,14 @@ export default function AuthModal({ onAuth }: Props) {
             </svg>
           </div>
           <h2 className="text-xl font-semibold text-gray-900">Content Pipeline</h2>
-          <p className="text-sm text-gray-500 mt-1">Enter your API token to continue</p>
+          <p className="text-sm text-gray-500 mt-1">Enter your passphrase to continue</p>
         </div>
         <form onSubmit={handleSubmit}>
           <input
             type="password"
-            value={token}
-            onChange={(e) => { setTokenValue(e.target.value); setError(''); }}
-            placeholder="Bearer token"
+            value={passphrase}
+            onChange={(e) => { setPassphrase(e.target.value); setError(''); }}
+            placeholder="Passphrase"
             className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition"
             autoFocus
           />
