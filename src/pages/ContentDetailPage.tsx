@@ -118,7 +118,7 @@ export default function ContentDetailPage() {
         </div>
         <div className="p-4 sm:p-6">
           {tab === 'Article' && <ArticleTab markdown={markdown} />}
-          {tab === 'Claims' && <ClaimsTab claims={claims} />}
+          {tab === 'Claims' && <ClaimsTab claims={claims} sources={sources} />}
           {tab === 'Sources' && <SourcesTab sources={sources} />}
           {tab === 'Traces' && <TracesTab traces={traces} />}
           {tab === 'Platforms' && <PlatformsTab platforms={platforms} />}
@@ -138,12 +138,23 @@ function ArticleTab({ markdown }: { markdown: string }) {
   );
 }
 
-function ClaimsTab({ claims }: { claims: Claim[] }) {
+function ClaimsTab({ claims, sources }: { claims: Claim[]; sources: Source[] }) {
   if (claims.length === 0) return <EmptyState title="No claims" description="No claims have been extracted for this content" />;
+
+  // Group sources by claim_id for inline display
+  const sourcesByClaim = sources.reduce<Record<string, Source[]>>((acc, src) => {
+    if (src.claim_id) {
+      if (!acc[src.claim_id]) acc[src.claim_id] = [];
+      acc[src.claim_id].push(src);
+    }
+    return acc;
+  }, {});
+
   return (
     <div className="space-y-3">
       {claims.map((claim) => {
         const colors = CLAIM_STATUS_COLORS[claim.status] || CLAIM_STATUS_COLORS.pending;
+        const claimSources = sourcesByClaim[claim.id] || [];
         return (
           <div key={claim.id} className="border border-gray-100 rounded-lg p-4">
             <div className="flex items-start gap-3">
@@ -155,6 +166,25 @@ function ClaimsTab({ claims }: { claims: Claim[] }) {
                 {claim.context && <p className="text-xs text-gray-400 mt-1">{claim.context}</p>}
                 {claim.verification_notes && (
                   <p className="text-xs text-gray-500 mt-2 bg-gray-50 rounded-md p-2">{claim.verification_notes}</p>
+                )}
+                {claimSources.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Sources ({claimSources.length})</p>
+                    {claimSources.map((src) => (
+                      <div key={src.id} className="flex items-center gap-2 text-xs">
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          src.reliability === 'high' ? 'bg-green-400' : src.reliability === 'medium' ? 'bg-yellow-400' : 'bg-red-400'
+                        }`} />
+                        {src.url ? (
+                          <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                            {src.title || src.url}
+                          </a>
+                        ) : (
+                          <span className="text-gray-500">{src.title || 'Unknown source'}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
               <div className="text-right flex-shrink-0">
