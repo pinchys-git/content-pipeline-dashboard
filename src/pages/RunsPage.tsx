@@ -75,7 +75,7 @@ export default function RunsPage() {
           {runs.map((run) => (
             <div
               key={run.runId}
-              className="bg-white border border-gray-200 rounded-xl p-5 hover:border-gray-300 transition cursor-pointer"
+              className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 hover:border-gray-300 transition cursor-pointer"
               onClick={() => navigate(`/content/${run.contentId}`)}
             >
               <div className="flex items-start justify-between gap-4 mb-3">
@@ -110,7 +110,7 @@ export default function RunsPage() {
               </div>
 
               {/* Stats */}
-              <div className="flex items-center gap-6 text-xs text-gray-500">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 sm:gap-x-6 text-xs text-gray-500">
                 <span>{run.totalTokens.toLocaleString()} tokens</span>
                 <span>{(run.totalLatency / 1000).toFixed(1)}s total</span>
                 <span>${run.totalCost.toFixed(4)}</span>

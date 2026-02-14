@@ -164,8 +164,8 @@ function WatchTopicsTab({ siteId, pillars }: { siteId: string; pillars: Pillar[]
             const keywords = parseJSON<string[]>(wt.keywords) || [];
             const sourceTypes = parseJSON<string[]>(wt.source_types) || [];
             return (
-              <div key={wt.id} className="bg-white border border-gray-200 rounded-xl p-4">
-                <div className="flex items-start justify-between gap-4">
+              <div key={wt.id} className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4">
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h3 className="text-sm font-medium text-gray-900">{wt.name}</h3>
@@ -189,7 +189,7 @@ function WatchTopicsTab({ siteId, pillars }: { siteId: string; pillars: Pillar[]
                       <span>Last scanned: {wt.last_scanned_at ? formatDatetime(wt.last_scanned_at) : 'never'}</span>
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="hidden sm:flex gap-2 flex-shrink-0">
                     <button
                       onClick={() => handleScan(wt.id)}
                       disabled={scanning === wt.id}
@@ -205,6 +205,23 @@ function WatchTopicsTab({ siteId, pillars }: { siteId: string; pillars: Pillar[]
                       ✕
                     </button>
                   </div>
+                </div>
+                {/* Mobile action buttons */}
+                <div className="flex sm:hidden gap-2 mt-3 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={() => handleScan(wt.id)}
+                    disabled={scanning === wt.id}
+                    className="flex-1 px-3 py-2 text-xs font-medium bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition disabled:opacity-50"
+                  >
+                    {scanning === wt.id ? 'Scanning...' : '▸ Scan Now'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(wt)}
+                    className="px-3 py-2 text-xs text-gray-400 hover:text-red-500 transition"
+                    title="Deactivate"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
             );
@@ -299,7 +316,7 @@ function NewWatchTopicForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
+    <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 space-y-5">
       <h3 className="text-sm font-medium text-gray-900">New Watch Topic</h3>
 
       <div className="space-y-4">
@@ -543,8 +560,8 @@ function IdeasTab({ siteId }: { siteId: string }) {
             const sourceUrls = parseJSON<string[]>(idea.source_urls) || [];
             const isActive = idea.status === 'proposed';
             return (
-              <div key={idea.id} className="bg-white border border-gray-200 rounded-xl p-4">
-                <div className="flex items-start justify-between gap-4">
+              <div key={idea.id} className="bg-white border border-gray-200 rounded-xl p-3 sm:p-4">
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       {idea.overall_score !== null && (
@@ -565,7 +582,7 @@ function IdeasTab({ siteId }: { siteId: string }) {
 
                     {/* Sub-scores */}
                     {(idea.relevance_score !== null || idea.freshness_score !== null || idea.uniqueness_score !== null) && (
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-gray-400">
                         {idea.relevance_score !== null && <span>Relevance: {idea.relevance_score.toFixed(2)}</span>}
                         {idea.freshness_score !== null && <span>Freshness: {idea.freshness_score.toFixed(2)}</span>}
                         {idea.uniqueness_score !== null && <span>Uniqueness: {idea.uniqueness_score.toFixed(2)}</span>}
@@ -613,7 +630,7 @@ function IdeasTab({ siteId }: { siteId: string }) {
                   </div>
 
                   {isActive && (
-                    <div className="flex flex-col gap-1.5 flex-shrink-0">
+                    <div className="hidden sm:flex flex-col gap-1.5 flex-shrink-0">
                       <button
                         onClick={() => handleApprove(idea)}
                         disabled={actionPending === idea.id}
@@ -631,6 +648,25 @@ function IdeasTab({ siteId }: { siteId: string }) {
                     </div>
                   )}
                 </div>
+                {/* Mobile action buttons - below content */}
+                {isActive && (
+                  <div className="flex sm:hidden gap-2 mt-3 pt-3 border-t border-gray-100">
+                    <button
+                      onClick={() => handleApprove(idea)}
+                      disabled={actionPending === idea.id}
+                      className="flex-1 px-3 py-2 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition disabled:opacity-50"
+                    >
+                      {actionPending === idea.id ? '...' : '✓ Approve'}
+                    </button>
+                    <button
+                      onClick={() => handleDismiss(idea)}
+                      disabled={actionPending === idea.id}
+                      className="flex-1 px-3 py-2 text-xs font-medium bg-gray-50 text-gray-500 rounded-lg hover:bg-gray-100 transition disabled:opacity-50"
+                    >
+                      ✕ Dismiss
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -692,7 +728,7 @@ function ScanRunsTab({ siteId }: { siteId: string }) {
                     <span key={st} className="px-2 py-0.5 text-xs bg-violet-50 text-violet-600 rounded-full capitalize">{st}</span>
                   ))}
                 </div>
-                <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 sm:gap-x-4 mt-2 text-xs text-gray-500">
                   <span>Found: <strong className="text-gray-700">{run.ideas_found}</strong></span>
                   <span>Stored: <strong className="text-gray-700">{run.ideas_stored}</strong></span>
                   <span>Deduped: <strong className="text-gray-700">{run.ideas_deduped}</strong></span>

@@ -59,7 +59,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Pipeline visualization */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6">
         <h2 className="text-sm font-medium text-gray-900 mb-4">Pipeline Stages</h2>
         <div className="flex items-center gap-0 overflow-x-auto pb-2">
           {STAGES.map((stage, i) => {
@@ -69,7 +69,7 @@ export default function DashboardPage() {
               <div key={stage} className="flex items-center">
                 <button
                   onClick={() => navigate(`/content?stage=${stage}`)}
-                  className={`flex flex-col items-center px-4 py-3 rounded-xl min-w-[90px] transition hover:scale-105 ${colors.bg}`}
+                  className={`flex flex-col items-center px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl min-w-[75px] sm:min-w-[90px] transition hover:scale-105 ${colors.bg}`}
                 >
                   <span className={`text-2xl font-bold ${colors.text}`}>{count}</span>
                   <span className={`text-xs font-medium mt-1 ${colors.text} capitalize`}>{stage}</span>
@@ -87,7 +87,7 @@ export default function DashboardPage() {
 
       {/* Recent content */}
       <div className="bg-white border border-gray-200 rounded-xl">
-        <div className="px-6 py-4 border-b border-gray-100">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
           <h2 className="text-sm font-medium text-gray-900">Recent Content</h2>
         </div>
         {recentContent.length === 0 ? (
@@ -98,7 +98,7 @@ export default function DashboardPage() {
               <button
                 key={item.id}
                 onClick={() => navigate(`/content/${item.id}`)}
-                className="w-full px-6 py-3.5 flex items-center gap-4 hover:bg-gray-50 transition text-left"
+                className="w-full px-4 sm:px-6 py-3.5 flex items-center gap-3 sm:gap-4 hover:bg-gray-50 transition text-left"
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">{item.title || 'Untitled'}</div>

@@ -57,7 +57,7 @@ export default function ContentDetailPage() {
       </button>
 
       {/* Header */}
-      <div className="bg-white border border-gray-200 rounded-xl p-6">
+      <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6">
         <div className="flex flex-wrap items-start gap-3 mb-4">
           <StageBadge stage={content.stage} size="md" />
           {content.requires_review ? (
@@ -74,7 +74,7 @@ export default function ContentDetailPage() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{content.title || 'Untitled'}</h1>
         {content.excerpt && <p className="text-sm text-gray-500 mb-4">{content.excerpt}</p>}
-        <div className="flex flex-wrap items-center gap-6 text-sm text-gray-500">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm text-gray-500">
           {content.quality_score !== null && (
             <div className="flex items-center gap-2">
               <span className="text-gray-400">Quality</span>
@@ -92,7 +92,7 @@ export default function ContentDetailPage() {
 
       {/* Tabs */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div className="border-b border-gray-100 px-6 flex gap-0 overflow-x-auto">
+        <div className="border-b border-gray-100 px-3 sm:px-6 flex gap-0 overflow-x-auto">
           {TABS.map((t) => (
             <button
               key={t}
@@ -116,7 +116,7 @@ export default function ContentDetailPage() {
             </button>
           ))}
         </div>
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {tab === 'Article' && <ArticleTab markdown={markdown} />}
           {tab === 'Claims' && <ClaimsTab claims={claims} />}
           {tab === 'Sources' && <SourcesTab sources={sources} />}

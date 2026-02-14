@@ -250,19 +250,19 @@ export default function ReviewPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-sm text-gray-400 hover:text-gray-600 transition">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <button onClick={() => navigate(-1)} className="text-sm text-gray-400 hover:text-gray-600 transition flex-shrink-0">
             ← Back
           </button>
-          <h1 className="text-lg font-semibold text-gray-900 truncate max-w-md">{content.title || 'Untitled'}</h1>
+          <h1 className="text-base sm:text-lg font-semibold text-gray-900 truncate max-w-[200px] sm:max-w-md">{content.title || 'Untitled'}</h1>
           <StageBadge stage={content.stage} />
         </div>
       </div>
 
-      {/* Two-panel layout */}
-      <div className="flex gap-4">
+      {/* Two-panel layout - stacks vertically on mobile */}
+      <div className="flex flex-col lg:flex-row gap-4">
         {/* Left Panel: Editor (scrolls naturally) */}
-        <div className="w-[65%] flex flex-col">
+        <div className="w-full lg:w-[65%] flex flex-col">
           <div className="bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden">
             {/* Toolbar */}
             {editor && <EditorToolbar editor={editor} />}
@@ -273,7 +273,7 @@ export default function ReviewPage() {
             </div>
 
             {/* Save bar */}
-            <div className="border-t border-gray-100 px-4 py-3 flex items-center gap-3">
+            <div className="border-t border-gray-100 px-3 sm:px-4 py-3 flex items-center gap-3">
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -292,7 +292,7 @@ export default function ReviewPage() {
           </div>
 
           {/* Action Bar */}
-          <div className="mt-3 bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center gap-3">
+          <div className="mt-3 bg-white border border-gray-200 rounded-xl px-3 sm:px-4 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
             <button
               onClick={() => handleApprove('scheduled')}
               disabled={approving}
@@ -303,7 +303,7 @@ export default function ReviewPage() {
             <button
               onClick={() => handleApprove('published')}
               disabled={approving}
-              className="px-4 py-2 text-sm font-medium border border-emerald-600 text-emerald-700 rounded-lg hover:bg-emerald-50 transition disabled:opacity-50"
+              className="px-3 sm:px-4 py-2 text-sm font-medium border border-emerald-600 text-emerald-700 rounded-lg hover:bg-emerald-50 transition disabled:opacity-50"
             >
               Approve & Publish
             </button>
@@ -317,10 +317,10 @@ export default function ReviewPage() {
           </div>
         </div>
 
-        {/* Right Panel: Sidebar (sticky, fits viewport) */}
-        <div className="w-[35%] bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden sticky top-20" style={{ height: 'calc(100vh - 6rem)', maxHeight: 'calc(100vh - 6rem)' }}>
+        {/* Right Panel: Sidebar - below editor on mobile, sticky sidebar on desktop */}
+        <div className="w-full lg:w-[35%] bg-white border border-gray-200 rounded-xl flex flex-col overflow-hidden lg:sticky lg:top-20" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
           {/* Tabs */}
-          <div className="border-b border-gray-100 px-4 flex gap-0">
+          <div className="border-b border-gray-100 px-3 sm:px-4 flex gap-0 overflow-x-auto">
             {SIDEBAR_TABS.map((tab) => (
               <button
                 key={tab}
@@ -342,8 +342,8 @@ export default function ReviewPage() {
             ))}
           </div>
 
-          {/* Tab Content */}
-          <div className="flex-1 overflow-hidden flex flex-col">
+          {/* Tab Content - on mobile, give it a fixed height so it doesn't collapse */}
+          <div className="flex-1 overflow-hidden flex flex-col min-h-[400px] lg:min-h-0">
             {sidebarTab === 'Chat' && (
               <ChatTab
                 messages={messages}

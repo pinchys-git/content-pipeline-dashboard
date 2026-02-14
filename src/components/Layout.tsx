@@ -18,7 +18,7 @@ export default function Layout({ onLogout }: Props) {
   const { sites, selectedSite, setSelectedSite } = useSites();
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="min-h-screen bg-[#fafafa] overflow-x-hidden">
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -52,7 +52,7 @@ export default function Layout({ onLogout }: Props) {
                   const site = sites.find((s) => s.id === e.target.value);
                   if (site) setSelectedSite(site);
                 }}
-                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 max-w-[140px] sm:max-w-none truncate"
               >
                 {sites.map((s) => (
                   <option key={s.id} value={s.id}>{s.name}</option>
