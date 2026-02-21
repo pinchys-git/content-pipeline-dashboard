@@ -14,7 +14,12 @@ import {
   createRevision,
   approveContent,
   rejectContent,
+  resolveClaim,
+  resolveAllClaims,
+  getClaimsSummary,
+  reVerifyClaims,
 } from '../lib/api';
+import type { ClaimsSummary } from '../lib/api';
 import type { Content, Claim, ReviewMessage, Revision } from '../lib/types';
 import { CLAIM_STATUS_COLORS, formatDatetime, parseJSON } from '../lib/utils';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -40,6 +45,9 @@ export default function ReviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>('Chat');
+
+  // Claims summary state
+  const [claimsSummary, setClaimsSummary] = useState<ClaimsSummary | null>(null);
 
   // Editor state
   const [saving, setSaving] = useState(false);
@@ -81,6 +89,22 @@ export default function ReviewPage() {
     },
   });
 
+  // Refresh content detail + claims
+  const refreshContentAndClaims = useCallback(async () => {
+    if (!id) return;
+    try {
+      const [detail, summary] = await Promise.all([
+        fetchContentDetail(id),
+        getClaimsSummary(id).catch(() => null),
+      ]);
+      setContent(detail.content);
+      setClaims(detail.claims || []);
+      if (summary) setClaimsSummary(summary);
+    } catch (e: any) {
+      // silent refresh failure
+    }
+  }, [id]);
+
   // Load data
   useEffect(() => {
     if (!id) return;
@@ -89,12 +113,14 @@ export default function ReviewPage() {
       fetchContentDetail(id),
       fetchReviewMessages(id),
       fetchRevisions(id),
+      getClaimsSummary(id).catch(() => null),
     ])
-      .then(([detail, msgs, revs]) => {
+      .then(([detail, msgs, revs, summary]) => {
         setContent(detail.content);
         setClaims(detail.claims || []);
         setMessages(msgs);
         setRevisions(revs);
+        if (summary) setClaimsSummary(summary);
 
         // Load markdown into editor
         const md = detail.content.final_md || detail.content.draft_md || '';
@@ -215,11 +241,11 @@ export default function ReviewPage() {
   };
 
   // Approve
-  const handleApprove = async (targetStage?: string) => {
+  const handleApprove = async (force?: boolean) => {
     if (!id) return;
     setApproving(true);
     try {
-      await approveContent(id, targetStage);
+      await approveContent(id, 'published', force);
       navigate('/content');
     } catch (e: any) {
       alert(`Approve failed: ${e.message}`);
@@ -293,20 +319,36 @@ export default function ReviewPage() {
 
           {/* Action Bar */}
           <div className="mt-3 bg-white border border-gray-200 rounded-xl px-3 sm:px-4 py-3 flex flex-wrap items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => handleApprove('scheduled')}
-              disabled={approving}
-              className="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
-            >
-              {approving ? 'Approving...' : 'Approve'}
-            </button>
-            <button
-              onClick={() => handleApprove('published')}
-              disabled={approving}
-              className="px-3 sm:px-4 py-2 text-sm font-medium border border-emerald-600 text-emerald-700 rounded-lg hover:bg-emerald-50 transition disabled:opacity-50"
-            >
-              Approve & Publish
-            </button>
+            {/* Claims status indicator */}
+            {claimsSummary && claimsSummary.unresolved_count > 0 ? (
+              <>
+                <span className="text-xs px-2.5 py-1 bg-amber-50 text-amber-700 rounded-full font-medium">
+                  ⚠️ {claimsSummary.unresolved_count} unresolved claim{claimsSummary.unresolved_count !== 1 ? 's' : ''}
+                </span>
+                <button
+                  onClick={() => handleApprove(true)}
+                  disabled={approving}
+                  className="px-4 py-2 text-sm font-medium bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition disabled:opacity-50"
+                >
+                  {approving ? 'Publishing...' : `Force Publish (${claimsSummary.unresolved_count} unresolved)`}
+                </button>
+              </>
+            ) : (
+              <>
+                {claimsSummary && (
+                  <span className="text-xs px-2.5 py-1 bg-green-50 text-green-700 rounded-full font-medium">
+                    ✅ All claims resolved
+                  </span>
+                )}
+                <button
+                  onClick={() => handleApprove(false)}
+                  disabled={approving}
+                  className="px-4 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
+                >
+                  {approving ? 'Publishing...' : 'Publish'}
+                </button>
+              </>
+            )}
             <div className="flex-1" />
             <button
               onClick={() => setShowRejectModal(true)}
@@ -354,7 +396,7 @@ export default function ReviewPage() {
                 chatEndRef={chatEndRef}
               />
             )}
-            {sidebarTab === 'Claims' && <ClaimsTab claims={claims} />}
+            {sidebarTab === 'Claims' && <ClaimsTab claims={claims} contentId={id!} onRefresh={refreshContentAndClaims} />}
             {sidebarTab === 'Revisions' && <RevisionsTab revisions={revisions} />}
             {sidebarTab === 'Meta' && <MetaTab content={content} />}
           </div>
@@ -592,8 +634,18 @@ function ChatTab({
 // Claims Tab
 // ============================================================
 
-function ClaimsTab({ claims }: { claims: Claim[] }) {
+const RESOLUTION_BADGES: Record<string, { bg: string; text: string; label: string }> = {
+  corrected: { bg: 'bg-blue-50', text: 'text-blue-700', label: '✏️ Corrected' },
+  dismissed: { bg: 'bg-gray-100', text: 'text-gray-500', label: '🚫 Dismissed' },
+  verified_override: { bg: 'bg-green-50', text: 'text-green-700', label: '✓ Override' },
+  verified: { bg: 'bg-green-50', text: 'text-green-700', label: '✓ Verified' },
+};
+
+function ClaimsTab({ claims, contentId, onRefresh }: { claims: Claim[]; contentId: string; onRefresh: () => Promise<void> }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [resolving, setResolving] = useState<Set<string>>(new Set());
+  const [reVerifying, setReVerifying] = useState(false);
+  const [dismissingAll, setDismissingAll] = useState(false);
 
   if (claims.length === 0) {
     return (
@@ -603,49 +655,194 @@ function ClaimsTab({ claims }: { claims: Claim[] }) {
     );
   }
 
+  // Filter out superseded claims
+  const activeClaims = claims.filter(c => c.resolution_status !== 'superseded');
+
+  // Count stats
+  const unresolvedClaims = activeClaims.filter(c =>
+    ['disputed', 'unverifiable', 'pending'].includes(c.status) &&
+    !c.resolution_status
+  );
+  const verifiedCount = activeClaims.filter(c => c.status === 'verified' || c.resolution_status === 'verified_override').length;
+  const resolvedCount = activeClaims.filter(c => c.resolution_status && c.resolution_status !== 'superseded').length;
+  const unverifiableUnresolved = activeClaims.filter(c => c.status === 'unverifiable' && !c.resolution_status).length;
+
+  const handleResolve = async (claimId: string, resolution: string) => {
+    setResolving(prev => new Set(prev).add(claimId));
+    try {
+      await resolveClaim(contentId, claimId, resolution);
+      await onRefresh();
+    } catch (e: any) {
+      alert(`Failed to resolve: ${e.message}`);
+    } finally {
+      setResolving(prev => {
+        const next = new Set(prev);
+        next.delete(claimId);
+        return next;
+      });
+    }
+  };
+
+  const handleReVerify = async () => {
+    setReVerifying(true);
+    try {
+      await reVerifyClaims(contentId);
+      await onRefresh();
+    } catch (e: any) {
+      alert(`Re-verify failed: ${e.message}`);
+    } finally {
+      setReVerifying(false);
+    }
+  };
+
+  const handleDismissAllUnverifiable = async () => {
+    setDismissingAll(true);
+    try {
+      await resolveAllClaims(contentId, 'unverifiable', 'dismissed', 'Bulk dismissed unverifiable claims');
+      await onRefresh();
+    } catch (e: any) {
+      alert(`Dismiss all failed: ${e.message}`);
+    } finally {
+      setDismissingAll(false);
+    }
+  };
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-2">
-      {claims.map((claim) => {
-        const colors = CLAIM_STATUS_COLORS[claim.status] || CLAIM_STATUS_COLORS.pending;
-        const isExpanded = expanded.has(claim.id);
-        return (
-          <div
-            key={claim.id}
-            className="border border-gray-100 rounded-lg p-3 cursor-pointer hover:border-gray-200 transition"
-            onClick={() => {
-              const next = new Set(expanded);
-              if (isExpanded) next.delete(claim.id); else next.add(claim.id);
-              setExpanded(next);
-            }}
+    <div className="flex-1 overflow-y-auto flex flex-col">
+      {/* Header with stats and bulk actions */}
+      <div className="px-4 pt-3 pb-2 border-b border-gray-100 space-y-2 flex-shrink-0">
+        <div className="flex flex-wrap gap-1.5 text-[10px] font-medium">
+          {unresolvedClaims.length > 0 && (
+            <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded-full">
+              {unresolvedClaims.length} unresolved
+            </span>
+          )}
+          <span className="px-1.5 py-0.5 bg-green-50 text-green-700 rounded-full">
+            {verifiedCount} verified
+          </span>
+          {resolvedCount > 0 && (
+            <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded-full">
+              {resolvedCount} resolved
+            </span>
+          )}
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            onClick={handleReVerify}
+            disabled={reVerifying}
+            className="px-2 py-1 text-[10px] font-medium bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100 transition disabled:opacity-50"
           >
-            <div className="flex items-start gap-2">
-              <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded-full ${colors.bg} ${colors.text} capitalize flex-shrink-0 mt-0.5`}>
-                {claim.status}
-              </span>
-              <p className="text-xs text-gray-800 flex-1 line-clamp-2">{claim.claim_text}</p>
-            </div>
-            {/* Confidence bar */}
-            <div className="mt-2 flex items-center gap-2">
-              <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    (claim.confidence ?? 0) >= 0.7 ? 'bg-green-500' :
-                    (claim.confidence ?? 0) >= 0.4 ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${Math.round((claim.confidence ?? 0) * 100)}%` }}
-                />
+            {reVerifying ? 'Re-verifying...' : '🔄 Re-verify Outstanding'}
+          </button>
+          {unverifiableUnresolved > 0 && (
+            <button
+              onClick={handleDismissAllUnverifiable}
+              disabled={dismissingAll}
+              className="px-2 py-1 text-[10px] font-medium bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition disabled:opacity-50"
+            >
+              {dismissingAll ? 'Dismissing...' : `🚫 Dismiss All Unverifiable (${unverifiableUnresolved})`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Claims list */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        {activeClaims.map((claim) => {
+          const colors = CLAIM_STATUS_COLORS[claim.status] || CLAIM_STATUS_COLORS.pending;
+          const isExpanded = expanded.has(claim.id);
+          const isResolved = !!claim.resolution_status;
+          const isUnresolved = ['disputed', 'unverifiable', 'pending'].includes(claim.status) && !claim.resolution_status;
+          const isClaimResolving = resolving.has(claim.id);
+          const resBadge = claim.resolution_status ? RESOLUTION_BADGES[claim.resolution_status] : null;
+
+          return (
+            <div
+              key={claim.id}
+              className={`border rounded-lg p-3 cursor-pointer transition ${
+                isUnresolved
+                  ? 'border-amber-200 bg-amber-50/30 hover:border-amber-300'
+                  : isResolved
+                  ? 'border-gray-100 bg-gray-50/50 hover:border-gray-200'
+                  : 'border-gray-100 hover:border-gray-200'
+              }`}
+              onClick={() => {
+                const next = new Set(expanded);
+                if (isExpanded) next.delete(claim.id); else next.add(claim.id);
+                setExpanded(next);
+              }}
+            >
+              <div className="flex items-start gap-2">
+                <div className="flex flex-col gap-0.5 flex-shrink-0 mt-0.5">
+                  <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded-full ${colors.bg} ${colors.text} capitalize`}>
+                    {claim.status}
+                  </span>
+                  {resBadge && (
+                    <span className={`inline-flex px-1.5 py-0.5 text-[10px] font-medium rounded-full ${resBadge.bg} ${resBadge.text}`}>
+                      {resBadge.label}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-800 flex-1 line-clamp-2">{claim.claim_text}</p>
               </div>
-              <span className="text-[10px] text-gray-400 tabular-nums">{Math.round((claim.confidence ?? 0) * 100)}%</span>
-            </div>
-            {/* Expanded content */}
-            {isExpanded && claim.verification_notes && (
-              <div className="mt-2 p-2 bg-gray-50 rounded-md text-xs text-gray-600">
-                {claim.verification_notes}
+              {/* Confidence bar */}
+              <div className="mt-2 flex items-center gap-2">
+                <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      (claim.confidence ?? 0) >= 0.7 ? 'bg-green-500' :
+                      (claim.confidence ?? 0) >= 0.4 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`}
+                    style={{ width: `${Math.round((claim.confidence ?? 0) * 100)}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-gray-400 tabular-nums">{Math.round((claim.confidence ?? 0) * 100)}%</span>
               </div>
-            )}
-          </div>
-        );
-      })}
+              {/* Expanded content */}
+              {isExpanded && (
+                <div className="mt-2 space-y-2">
+                  {claim.verification_notes && (
+                    <div className="p-2 bg-gray-50 rounded-md text-xs text-gray-600">
+                      {claim.verification_notes}
+                    </div>
+                  )}
+                  {claim.suggested_revision && (
+                    <div className="p-2 bg-blue-50 rounded-md text-xs text-blue-700">
+                      <span className="font-medium">Suggested: </span>{claim.suggested_revision}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Action buttons for unresolved claims */}
+              {isUnresolved && (
+                <div className="mt-2 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => handleResolve(claim.id, 'corrected')}
+                    disabled={isClaimResolving}
+                    className="px-2 py-1 text-[10px] font-medium bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition disabled:opacity-50"
+                  >
+                    {isClaimResolving ? '...' : '✅ Corrected'}
+                  </button>
+                  <button
+                    onClick={() => handleResolve(claim.id, 'dismissed')}
+                    disabled={isClaimResolving}
+                    className="px-2 py-1 text-[10px] font-medium bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition disabled:opacity-50"
+                  >
+                    {isClaimResolving ? '...' : '🚫 Dismiss'}
+                  </button>
+                  <button
+                    onClick={() => handleResolve(claim.id, 'verified_override')}
+                    disabled={isClaimResolving}
+                    className="px-2 py-1 text-[10px] font-medium bg-green-50 text-green-700 rounded-md hover:bg-green-100 transition disabled:opacity-50"
+                  >
+                    {isClaimResolving ? '...' : '✓ Override'}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

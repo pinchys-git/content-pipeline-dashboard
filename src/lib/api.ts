@@ -150,10 +150,10 @@ export async function fetchRevisions(contentId: string): Promise<Revision[]> {
 }
 
 // Approve/Reject
-export async function approveContent(contentId: string, targetStage?: string): Promise<{ success: boolean }> {
+export async function approveContent(contentId: string, targetStage?: string, force?: boolean): Promise<{ success: boolean }> {
   return apiFetch(`/api/content/${contentId}/review/approve`, {
     method: 'POST',
-    body: JSON.stringify({ target_stage: targetStage || 'scheduled' }),
+    body: JSON.stringify({ target_stage: targetStage || 'published', ...(force ? { force: true } : {}) }),
   });
 }
 
@@ -299,4 +299,50 @@ export async function updateContent(id: string, data: Partial<Content>): Promise
 
 export async function resumePipeline(contentId: string): Promise<any> {
   return apiFetch(`/api/pipeline/resume`, { method: 'POST', body: JSON.stringify({ content_id: contentId }) });
+}
+
+// Claim resolution
+export async function resolveClaim(contentId: string, claimId: string, resolution: string, notes?: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/content/${contentId}/claims/${claimId}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify({ resolution, ...(notes ? { notes } : {}) }),
+  });
+}
+
+export async function resolveAllClaims(contentId: string, filterStatus: string | undefined, resolution: string, notes?: string): Promise<{ success: boolean; resolved_count: number }> {
+  return apiFetch(`/api/content/${contentId}/claims/resolve-all`, {
+    method: 'POST',
+    body: JSON.stringify({ resolution, ...(filterStatus ? { filter_status: filterStatus } : {}), ...(notes ? { notes } : {}) }),
+  });
+}
+
+export interface ClaimsSummary {
+  total: number;
+  verified: number;
+  unresolved_disputed: number;
+  unresolved_unverifiable: number;
+  pending: number;
+  resolved: number;
+  unresolved_count: number;
+  ready_to_publish: boolean;
+}
+
+export async function getClaimsSummary(contentId: string): Promise<ClaimsSummary> {
+  return apiFetch(`/api/content/${contentId}/claims/summary`);
+}
+
+export async function reVerifyClaims(contentId: string): Promise<{
+  re_verified: number;
+  results: Array<{
+    claim_id: string;
+    claim_text: string;
+    old_status: string;
+    new_status: string;
+    new_confidence: number;
+    notes: string;
+  }>;
+}> {
+  return apiFetch(`/api/content/${contentId}/claims/re-verify`, {
+    method: 'POST',
+  });
 }

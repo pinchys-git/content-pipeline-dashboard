@@ -512,11 +512,15 @@ function ClaimsTab({ claims, sources }: { claims: Claim[]; sources: Source[] }) 
             {claim.resolution_status && claim.resolution_status !== 'superseded' && (
               <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
                 claim.resolution_status === 'corrected' ? 'bg-blue-50 text-blue-700' :
+                claim.resolution_status === 'dismissed' ? 'bg-gray-100 text-gray-500' :
+                claim.resolution_status === 'verified_override' ? 'bg-green-50 text-green-700' :
                 claim.resolution_status === 'flagged_for_review' ? 'bg-amber-50 text-amber-700' :
                 claim.resolution_status === 'verified' ? 'bg-green-50 text-green-700' :
                 'bg-gray-100 text-gray-600'
               }`}>
                 {claim.resolution_status === 'corrected' ? '✏️ Corrected' :
+                 claim.resolution_status === 'dismissed' ? '🚫 Dismissed' :
+                 claim.resolution_status === 'verified_override' ? '✓ Override' :
                  claim.resolution_status === 'flagged_for_review' ? '⚠️ Review' :
                  claim.resolution_status === 'verified' ? '✓ Verified' :
                  claim.resolution_status}
