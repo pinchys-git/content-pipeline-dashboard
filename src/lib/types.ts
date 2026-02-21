@@ -83,9 +83,12 @@ export interface Claim {
   content_id: string;
   claim_text: string;
   context: string | null;
+  category: string | null;
   status: 'pending' | 'verified' | 'disputed' | 'unverifiable';
   confidence: number | null;
   verification_notes: string | null;
+  suggested_revision: string | null;
+  resolution_status: string | null;  // 'verified' | 'corrected' | 'flagged_for_review' | null
 }
 
 export interface Source {

@@ -579,12 +579,31 @@ function SourcesTab({ sources, claims }: { sources: Source[]; claims: Claim[] })
                       {claim?.status || 'pending'}
                     </span>
                     <span className="text-xs text-gray-500 tabular-nums">{confidence}% confidence</span>
+                    {claim?.resolution_status && (
+                      <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                        claim.resolution_status === 'corrected' ? 'bg-blue-50 text-blue-700' :
+                        claim.resolution_status === 'flagged_for_review' ? 'bg-amber-50 text-amber-700' :
+                        claim.resolution_status === 'verified' ? 'bg-green-50 text-green-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {claim.resolution_status === 'corrected' ? '✏️ Corrected' :
+                         claim.resolution_status === 'flagged_for_review' ? '⚠️ Needs Review' :
+                         claim.resolution_status === 'verified' ? '✓ Verified' :
+                         claim.resolution_status}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-800">{claim?.claim_text || 'Unknown claim'}</p>
                   {claim?.verification_notes && (
                     <div className="mt-2 p-2.5 bg-white rounded-lg border border-gray-100 text-xs text-gray-600">
-                      <span className="font-medium text-gray-500">Verification notes: </span>
+                      <span className="font-medium text-gray-500">Verification: </span>
                       {claim.verification_notes}
+                    </div>
+                  )}
+                  {claim?.suggested_revision && (
+                    <div className="mt-2 p-2.5 bg-blue-50 rounded-lg border border-blue-100 text-xs text-blue-800">
+                      <span className="font-medium text-blue-600">Suggested correction: </span>
+                      {claim.suggested_revision}
                     </div>
                   )}
                 </div>
