@@ -302,10 +302,14 @@ export async function resumePipeline(contentId: string): Promise<any> {
 }
 
 // Claim resolution
-export async function resolveClaim(contentId: string, claimId: string, resolution: string, notes?: string): Promise<{ success: boolean }> {
+export async function resolveClaim(contentId: string, claimId: string, resolution: string, notes?: string, correctedText?: string): Promise<{ success: boolean; article_updated?: boolean }> {
   return apiFetch(`/api/content/${contentId}/claims/${claimId}/resolve`, {
     method: 'POST',
-    body: JSON.stringify({ resolution, ...(notes ? { notes } : {}) }),
+    body: JSON.stringify({ 
+      resolution, 
+      ...(notes ? { notes } : {}),
+      ...(correctedText ? { corrected_text: correctedText } : {}),
+    }),
   });
 }
 

@@ -646,6 +646,8 @@ function ClaimsTab({ claims, contentId, onRefresh }: { claims: Claim[]; contentI
   const [resolving, setResolving] = useState<Set<string>>(new Set());
   const [reVerifying, setReVerifying] = useState(false);
   const [dismissingAll, setDismissingAll] = useState(false);
+  const [editingClaim, setEditingClaim] = useState<string | null>(null);  // claim ID being edited
+  const [editText, setEditText] = useState('');
 
   if (claims.length === 0) {
     return (
@@ -667,10 +669,12 @@ function ClaimsTab({ claims, contentId, onRefresh }: { claims: Claim[]; contentI
   const resolvedCount = activeClaims.filter(c => c.resolution_status && c.resolution_status !== 'superseded').length;
   const unverifiableUnresolved = activeClaims.filter(c => c.status === 'unverifiable' && !c.resolution_status).length;
 
-  const handleResolve = async (claimId: string, resolution: string) => {
+  const handleResolve = async (claimId: string, resolution: string, correctedText?: string) => {
     setResolving(prev => new Set(prev).add(claimId));
     try {
-      await resolveClaim(contentId, claimId, resolution);
+      await resolveClaim(contentId, claimId, resolution, undefined, correctedText);
+      setEditingClaim(null);
+      setEditText('');
       await onRefresh();
     } catch (e: any) {
       alert(`Failed to resolve: ${e.message}`);
@@ -814,8 +818,20 @@ function ClaimsTab({ claims, contentId, onRefresh }: { claims: Claim[]; contentI
                 </div>
               )}
               {/* Action buttons for unresolved claims */}
-              {isUnresolved && (
-                <div className="mt-2 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+              {isUnresolved && editingClaim !== claim.id && (
+                <div className="mt-2 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => {
+                      setEditingClaim(claim.id);
+                      setEditText(claim.suggested_revision || claim.claim_text);
+                      // Also expand the claim to show context
+                      setExpanded(prev => new Set(prev).add(claim.id));
+                    }}
+                    disabled={isClaimResolving}
+                    className="px-2 py-1 text-[10px] font-medium bg-amber-50 text-amber-700 rounded-md hover:bg-amber-100 transition disabled:opacity-50"
+                  >
+                    ✏️ Edit & Correct
+                  </button>
                   <button
                     onClick={() => handleResolve(claim.id, 'corrected')}
                     disabled={isClaimResolving}
@@ -837,6 +853,35 @@ function ClaimsTab({ claims, contentId, onRefresh }: { claims: Claim[]; contentI
                   >
                     {isClaimResolving ? '...' : '✓ Override'}
                   </button>
+                </div>
+              )}
+              {/* Inline edit form for correcting claims */}
+              {editingClaim === claim.id && (
+                <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+                  <div className="text-[10px] font-medium text-amber-700">✏️ Edit the corrected claim text:</div>
+                  <textarea
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    rows={3}
+                    className="w-full text-xs border border-amber-200 rounded-md p-2 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400 resize-y"
+                    placeholder="Enter the corrected claim text..."
+                    autoFocus
+                  />
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => handleResolve(claim.id, 'corrected', editText)}
+                      disabled={isClaimResolving || !editText.trim()}
+                      className="px-3 py-1.5 text-[10px] font-medium bg-amber-600 text-white rounded-md hover:bg-amber-700 transition disabled:opacity-50"
+                    >
+                      {isClaimResolving ? 'Saving...' : '✅ Save & Correct Article'}
+                    </button>
+                    <button
+                      onClick={() => { setEditingClaim(null); setEditText(''); }}
+                      className="px-3 py-1.5 text-[10px] font-medium bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
