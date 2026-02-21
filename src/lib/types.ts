@@ -212,3 +212,77 @@ export interface IdeaScanRun {
   created_at: string;
   completed_at: string | null;
 }
+
+// Observability / Stats types
+export interface StatsTotals {
+  total_calls: number;
+  total_tokens: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  estimated_cost_usd: number;
+  avg_latency_ms: number;
+  total_articles: number;
+  total_runs: number;
+}
+
+export interface StatsByStage {
+  stage: string;
+  calls: number;
+  total_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  estimated_cost_usd: number;
+  avg_latency_ms: number;
+}
+
+export interface StatsByModel {
+  model: string;
+  calls: number;
+  total_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  estimated_cost_usd: number;
+  avg_latency_ms: number;
+}
+
+export interface StatsTopArticle {
+  content_id: string;
+  title: string | null;
+  stage: string;
+  calls: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+}
+
+export interface StatsDailyTrend {
+  date: string;
+  calls: number;
+  total_tokens: number;
+  estimated_cost_usd: number;
+}
+
+export interface StatsResponse {
+  period_days: number;
+  site_id: string | null;
+  totals: StatsTotals;
+  by_stage: StatsByStage[];
+  by_model: StatsByModel[];
+  top_articles: StatsTopArticle[];
+  daily_trend: StatsDailyTrend[];
+}
+
+export interface ContentLogsSummary {
+  total_calls: number;
+  total_tokens: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  estimated_cost_usd: number;
+  avg_latency_ms: number;
+}
+
+export interface ContentLogsResponse {
+  content: Content;
+  summary: ContentLogsSummary;
+  by_stage: Record<string, ContentLogsSummary>;
+  traces: Trace[];
+}

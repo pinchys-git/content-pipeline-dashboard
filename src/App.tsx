@@ -11,6 +11,7 @@ import TopicsPage from './pages/TopicsPage';
 import RunsPage from './pages/RunsPage';
 import ReviewPage from './pages/ReviewPage';
 import IdeasPage from './pages/IdeasPage';
+import ObservabilityPage from './pages/ObservabilityPage';
 
 export default function App() {
   const [authed, setAuthed] = useState(hasToken());
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="/topics" element={<TopicsPage />} />
             <Route path="/runs" element={<RunsPage />} />
             <Route path="/ideas" element={<IdeasPage />} />
+            <Route path="/observability" element={<ObservabilityPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

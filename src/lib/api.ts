@@ -1,4 +1,4 @@
-import type { Site, Topic, Pillar, Voice, Content, Claim, Source, Trace, Revision, ReviewMessage, SourceSuggestion, WatchTopic, Idea, IdeaScanRun } from './types';
+import type { Site, Topic, Pillar, Voice, Content, Claim, Source, Trace, Revision, ReviewMessage, SourceSuggestion, WatchTopic, Idea, IdeaScanRun, StatsResponse, ContentLogsResponse } from './types';
 
 const BASE_URL = 'https://content-pipeline.roccobot.workers.dev';
 
@@ -264,4 +264,16 @@ export async function fetchScanRuns(siteId?: string, watchTopicId?: string, limi
   const qs = params.toString();
   const data = await apiFetch<{ scan_runs: IdeaScanRun[] }>(`/api/ideas/scan-runs${qs ? `?${qs}` : ''}`);
   return data.scan_runs;
+}
+
+// LLM Observability Stats
+export async function fetchStats(siteId?: string, days?: number): Promise<StatsResponse> {
+  const params = new URLSearchParams();
+  if (siteId) params.set('site_id', siteId);
+  if (days) params.set('days', String(days));
+  return apiFetch<StatsResponse>(`/api/stats?${params}`);
+}
+
+export async function fetchContentLogs(contentId: string): Promise<ContentLogsResponse> {
+  return apiFetch<ContentLogsResponse>(`/api/content/${contentId}/logs`);
 }

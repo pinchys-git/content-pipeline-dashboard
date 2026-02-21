@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/topics', label: 'Topics', icon: '◉' },
   { to: '/runs', label: 'Runs', icon: '▸' },
   { to: '/ideas', label: 'Ideas', icon: '✦' },
+  { to: '/observability', label: 'Observability', icon: '📊' },
 ];
 
 interface Props {
