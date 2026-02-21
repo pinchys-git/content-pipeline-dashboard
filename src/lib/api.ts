@@ -1,4 +1,4 @@
-import type { Site, Topic, Pillar, Voice, Content, Claim, Source, Trace, Revision, ReviewMessage, SourceSuggestion, WatchTopic, Idea, IdeaScanRun, StatsResponse, ContentLogsResponse } from './types';
+import type { Site, Topic, Pillar, Voice, Content, Claim, Source, Trace, Revision, ReviewMessage, SourceSuggestion, WatchTopic, Idea, IdeaScanRun, StatsResponse, ContentLogsResponse, AuditResponse, TracePayloadResponse } from './types';
 
 const BASE_URL = 'https://content-pipeline.roccobot.workers.dev';
 
@@ -276,4 +276,14 @@ export async function fetchStats(siteId?: string, days?: number): Promise<StatsR
 
 export async function fetchContentLogs(contentId: string): Promise<ContentLogsResponse> {
   return apiFetch<ContentLogsResponse>(`/api/content/${contentId}/logs`);
+}
+
+// Audit trail
+export async function fetchAudit(contentId: string): Promise<AuditResponse> {
+  return apiFetch<AuditResponse>(`/api/content/${contentId}/audit`);
+}
+
+// Single trace with payload
+export async function fetchTracePayload(contentId: string, traceId: string): Promise<TracePayloadResponse> {
+  return apiFetch<TracePayloadResponse>(`/api/content/${contentId}/trace/${traceId}`);
 }

@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { fetchContentDetail, fetchTraces } from '../lib/api';
-import type { Content, Claim, Source, Trace } from '../lib/types';
+import { fetchContentDetail, fetchTraces, fetchAudit, fetchTracePayload, fetchPipelineStatus } from '../lib/api';
+import type { Content, Claim, Source, Trace, Revision, AuditResponse, AuditTimelineEvent, AuditSummary, TracePayloadResponse } from '../lib/types';
 import { STAGE_COLORS, CLAIM_STATUS_COLORS, RELIABILITY_COLORS, formatDate, formatDatetime, parseJSON, qualityColor } from '../lib/utils';
 import StageBadge from '../components/StageBadge';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -10,6 +10,9 @@ import EmptyState from '../components/EmptyState';
 
 const TABS = ['Article', 'Claims', 'Sources', 'Traces', 'Platforms', 'Meta'] as const;
 type Tab = typeof TABS[number];
+
+const PIPELINE_STAGES = ['queued', 'research', 'draft', 'verify', 'format', 'edit'];
+const TERMINAL_STAGES = ['review', 'scheduled', 'published', 'failed'];
 
 export default function ContentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,11 +24,14 @@ export default function ContentDetailPage() {
   const [tab, setTab] = useState<Tab>('Article');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPolling, setIsPolling] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Initial data load
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    fetchContentDetail(id!)
+    fetchContentDetail(id)
       .then(async (data) => {
         setContent(data.content);
         setClaims(data.claims || []);
@@ -34,12 +40,41 @@ export default function ContentDetailPage() {
           try {
             const t = await fetchTraces(data.content.run_id);
             setTraces(t);
-          } catch {}
+          } catch { /* ignore */ }
+        }
+        // Start polling if in pipeline stage
+        if (PIPELINE_STAGES.includes(data.content.stage)) {
+          setIsPolling(true);
         }
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Live polling for in-progress articles
+  useEffect(() => {
+    if (!isPolling || !content?.run_id) return;
+
+    const poll = async () => {
+      try {
+        const status = await fetchPipelineStatus(content.run_id!);
+        if (status.content) {
+          setContent(status.content);
+          if (TERMINAL_STAGES.includes(status.content.stage)) {
+            setIsPolling(false);
+          }
+        }
+        if (status.traces) {
+          setTraces(status.traces);
+        }
+      } catch { /* ignore polling errors */ }
+    };
+
+    pollingRef.current = setInterval(poll, 5000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [isPolling, content?.run_id, content?.stage]);
 
   if (loading) return <LoadingSpinner />;
   if (error) return <div className="text-red-500 text-sm text-center py-8">{error}</div>;
@@ -56,10 +91,32 @@ export default function ContentDetailPage() {
         <span>←</span> Back
       </button>
 
+      {/* Pipeline running banner */}
+      {isPolling && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
+          <span className="relative flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+          </span>
+          <div>
+            <span className="text-sm font-medium text-blue-800">🔄 Pipeline running...</span>
+            <span className="text-sm text-blue-600 ml-2">Stage: <span className="font-medium capitalize">{content.stage}</span></span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6">
         <div className="flex flex-wrap items-start gap-3 mb-4">
-          <StageBadge stage={content.stage} size="md" />
+          <div className="relative">
+            <StageBadge stage={content.stage} size="md" />
+            {isPolling && (
+              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+              </span>
+            )}
+          </div>
           {content.requires_review ? (
             <span className="px-2.5 py-1 text-sm rounded-full bg-amber-50 text-amber-700 font-medium">Needs Review</span>
           ) : null}
@@ -75,16 +132,16 @@ export default function ContentDetailPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{content.title || 'Untitled'}</h1>
         {content.excerpt && <p className="text-sm text-gray-500 mb-4">{content.excerpt}</p>}
         <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm text-gray-500">
-          {content.quality_score !== null && (
+          {content.quality_score !== null && content.quality_score !== undefined && (
             <div className="flex items-center gap-2">
               <span className="text-gray-400">Quality</span>
               <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${qualityColor(content.quality_score)}`} style={{ width: `${Math.round(content.quality_score * 100)}%` }} />
+                <div className={`h-full rounded-full ${qualityColor(content.quality_score)}`} style={{ width: `${Math.round((content.quality_score || 0) * 100)}%` }} />
               </div>
-              <span className="font-medium tabular-nums">{Math.round(content.quality_score * 100)}%</span>
+              <span className="font-medium tabular-nums">{Math.round((content.quality_score || 0) * 100)}%</span>
             </div>
           )}
-          {content.word_count && <span>{content.word_count.toLocaleString()} words</span>}
+          {content.word_count && <span>{(content.word_count || 0).toLocaleString()} words</span>}
           {content.reading_time && <span>{content.reading_time} min read</span>}
           <span>{formatDate(content.created_at)}</span>
         </div>
@@ -120,7 +177,7 @@ export default function ContentDetailPage() {
           {tab === 'Article' && <ArticleTab markdown={markdown} />}
           {tab === 'Claims' && <ClaimsTab claims={claims} sources={sources} />}
           {tab === 'Sources' && <SourcesTab sources={sources} />}
-          {tab === 'Traces' && <TracesTab traces={traces} />}
+          {tab === 'Traces' && <EnhancedTracesTab contentId={content.id} runId={content.run_id} fallbackTraces={traces} />}
           {tab === 'Platforms' && <PlatformsTab platforms={platforms} />}
           {tab === 'Meta' && <MetaTab content={content} tags={tags} />}
         </div>
@@ -129,6 +186,7 @@ export default function ContentDetailPage() {
   );
 }
 
+/* ========== Article Tab ========== */
 function ArticleTab({ markdown }: { markdown: string }) {
   if (!markdown) return <EmptyState title="No article content" description="This content hasn't been drafted yet" />;
   return (
@@ -138,10 +196,10 @@ function ArticleTab({ markdown }: { markdown: string }) {
   );
 }
 
+/* ========== Claims Tab ========== */
 function ClaimsTab({ claims, sources }: { claims: Claim[]; sources: Source[] }) {
   if (claims.length === 0) return <EmptyState title="No claims" description="No claims have been extracted for this content" />;
 
-  // Group sources by claim_id for inline display
   const sourcesByClaim = sources.reduce<Record<string, Source[]>>((acc, src) => {
     if (src.claim_id) {
       if (!acc[src.claim_id]) acc[src.claim_id] = [];
@@ -199,6 +257,7 @@ function ClaimsTab({ claims, sources }: { claims: Claim[]; sources: Source[] }) 
   );
 }
 
+/* ========== Sources Tab ========== */
 function SourcesTab({ sources }: { sources: Source[] }) {
   if (sources.length === 0) return <EmptyState title="No sources" description="No sources have been collected for this content" />;
   return (
@@ -227,9 +286,493 @@ function SourcesTab({ sources }: { sources: Source[] }) {
   );
 }
 
-function TracesTab({ traces }: { traces: Trace[] }) {
-  if (traces.length === 0) return <EmptyState title="No traces" description="No pipeline traces found for this content" />;
+/* ========== Enhanced Traces / Audit Tab ========== */
+const STAGE_FILTER_OPTIONS = ['all', 'research', 'draft', 'verify', 'format', 'edit'] as const;
 
+function EnhancedTracesTab({ contentId, runId, fallbackTraces }: { contentId: string; runId: string | null; fallbackTraces: Trace[] }) {
+  const [audit, setAudit] = useState<AuditResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stageFilter, setStageFilter] = useState<string>('all');
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+  const [tracePayloads, setTracePayloads] = useState<Record<string, TracePayloadResponse>>({});
+  const [loadingPayloads, setLoadingPayloads] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    setLoading(true);
+    fetchAudit(contentId)
+      .then(setAudit)
+      .catch((e) => {
+        setError(e.message);
+      })
+      .finally(() => setLoading(false));
+  }, [contentId]);
+
+  const toggleEvent = useCallback((eventKey: string) => {
+    setExpandedEvents(prev => {
+      const next = new Set(prev);
+      if (next.has(eventKey)) {
+        next.delete(eventKey);
+      } else {
+        next.add(eventKey);
+      }
+      return next;
+    });
+  }, []);
+
+  const loadTracePayload = useCallback(async (traceId: string) => {
+    if (tracePayloads[traceId] || loadingPayloads.has(traceId)) return;
+    setLoadingPayloads(prev => new Set(prev).add(traceId));
+    try {
+      const payload = await fetchTracePayload(contentId, traceId);
+      setTracePayloads(prev => ({ ...prev, [traceId]: payload }));
+    } catch { /* ignore */ }
+    setLoadingPayloads(prev => {
+      const next = new Set(prev);
+      next.delete(traceId);
+      return next;
+    });
+  }, [contentId, tracePayloads, loadingPayloads]);
+
+  if (loading) return <LoadingSpinner />;
+
+  // If audit API fails, fall back to basic traces view
+  if (error || !audit) {
+    if (fallbackTraces.length === 0) return <EmptyState title="No traces" description="No pipeline traces found for this content" />;
+    return <FallbackTracesView traces={fallbackTraces} />;
+  }
+
+  const { summary, timeline } = audit;
+  const filteredTimeline = stageFilter === 'all'
+    ? timeline
+    : timeline.filter(e => (e.stage || '') === stageFilter);
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Bar */}
+      <AuditSummaryBar summary={summary} />
+
+      {/* Stage Filter */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Filter by stage:</span>
+        {STAGE_FILTER_OPTIONS.map(stage => (
+          <button
+            key={stage}
+            onClick={() => setStageFilter(stage)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition capitalize ${
+              stageFilter === stage
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {stage}
+          </button>
+        ))}
+      </div>
+
+      {/* Timeline */}
+      {filteredTimeline.length === 0 ? (
+        <EmptyState title="No events" description={stageFilter === 'all' ? 'No timeline events found' : `No events for the "${stageFilter}" stage`} />
+      ) : (
+        <div className="space-y-0">
+          {filteredTimeline.map((event, i) => {
+            const eventKey = `${event.type}-${event.timestamp}-${i}`;
+            const isExpanded = expandedEvents.has(eventKey);
+            const isLast = i === filteredTimeline.length - 1;
+
+            return (
+              <TimelineEvent
+                key={eventKey}
+                event={event}
+                eventKey={eventKey}
+                isExpanded={isExpanded}
+                isLast={isLast}
+                onToggle={toggleEvent}
+                onLoadPayload={loadTracePayload}
+                payload={event.type === 'trace' && event.data?.id ? tracePayloads[event.data.id] : undefined}
+                isLoadingPayload={event.type === 'trace' && event.data?.id ? loadingPayloads.has(event.data.id) : false}
+                contentId={contentId}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---- Summary Bar ---- */
+function AuditSummaryBar({ summary }: { summary: AuditSummary }) {
+  return (
+    <div className="space-y-3">
+      {/* Top row: LLM stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <SummaryCard icon="⚡" label="LLM Calls" value={(summary.total_calls || 0).toLocaleString()} />
+        <SummaryCard icon="◈" label="Total Tokens" value={formatTokensShort(summary.total_tokens)} />
+        <SummaryCard icon="💰" label="Est. Cost" value={`$${(summary.estimated_cost_usd ?? 0).toFixed(4)}`} />
+        <SummaryCard icon="⏱" label="Total Latency" value={`${((summary.total_latency_ms || 0) / 1000).toFixed(1)}s`} />
+      </div>
+      {/* Bottom row: claims + revisions */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <SummaryCard icon="📋" label="Total Claims" value={(summary.claims?.total || 0).toLocaleString()} small />
+        <SummaryCard icon="✅" label="Verified" value={(summary.claims?.verified || 0).toLocaleString()} small color="text-green-600" />
+        <SummaryCard icon="⚠️" label="Disputed" value={(summary.claims?.disputed || 0).toLocaleString()} small color="text-red-600" />
+        <SummaryCard icon="❓" label="Unverifiable" value={(summary.claims?.unverifiable || 0).toLocaleString()} small color="text-yellow-600" />
+        <SummaryCard icon="📝" label="Revisions" value={(summary.revisions || 0).toLocaleString()} small />
+      </div>
+    </div>
+  );
+}
+
+function SummaryCard({ icon, label, value, small, color }: { icon: string; label: string; value: string; small?: boolean; color?: string }) {
+  return (
+    <div className={`bg-gray-50 rounded-lg ${small ? 'p-2.5' : 'p-3'} text-center`}>
+      <div className={`${small ? 'text-base' : 'text-lg'} font-semibold tabular-nums ${color || 'text-gray-900'}`}>
+        <span className="mr-1">{icon}</span>{value}
+      </div>
+      <div className="text-xs text-gray-500">{label}</div>
+    </div>
+  );
+}
+
+function formatTokensShort(n: number | null | undefined): string {
+  if (n == null) return '0';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return (n || 0).toLocaleString();
+}
+
+/* ---- Timeline Event ---- */
+function TimelineEvent({
+  event, eventKey, isExpanded, isLast, onToggle, onLoadPayload, payload, isLoadingPayload, contentId
+}: {
+  event: AuditTimelineEvent;
+  eventKey: string;
+  isExpanded: boolean;
+  isLast: boolean;
+  onToggle: (key: string) => void;
+  onLoadPayload: (traceId: string) => void;
+  payload?: TracePayloadResponse;
+  isLoadingPayload: boolean;
+  contentId: string;
+}) {
+  const handleClick = () => {
+    onToggle(eventKey);
+    // Lazy-load trace payload on first expand
+    if (!isExpanded && event.type === 'trace' && event.data?.id) {
+      onLoadPayload(event.data.id);
+    }
+  };
+
+  const stageColors = STAGE_COLORS[event.stage || ''] || STAGE_COLORS.failed;
+  const eventTime = event.timestamp ? new Date(event.timestamp) : null;
+  const timeStr = eventTime ? eventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : '';
+  const dateStr = eventTime ? eventTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+
+  // Dot color by event type
+  let dotColor = stageColors.dot;
+  if (event.type === 'claim') {
+    const status = event.data?.status || '';
+    if (status === 'verified') dotColor = 'bg-green-500';
+    else if (status === 'disputed') dotColor = 'bg-red-500';
+    else if (status === 'unverifiable') dotColor = 'bg-yellow-500';
+    else dotColor = 'bg-gray-400';
+  } else if (event.type === 'revision') {
+    dotColor = 'bg-indigo-500';
+  } else if (event.type === 'stage_change') {
+    dotColor = 'bg-gray-800';
+  }
+
+  // Status color for traces
+  let statusBadge = null;
+  if (event.type === 'trace') {
+    const status = event.data?.status || '';
+    if (status === 'success') {
+      statusBadge = <span className="px-1.5 py-0.5 text-xs rounded bg-green-50 text-green-700">success</span>;
+    } else if (status === 'error') {
+      statusBadge = <span className="px-1.5 py-0.5 text-xs rounded bg-red-50 text-red-700">error</span>;
+    } else if (status === 'warning') {
+      statusBadge = <span className="px-1.5 py-0.5 text-xs rounded bg-yellow-50 text-yellow-700">warning</span>;
+    }
+  }
+
+  return (
+    <div className="flex gap-4">
+      {/* Timeline line */}
+      <div className="flex flex-col items-center flex-shrink-0">
+        <div className={`w-3 h-3 rounded-full ${dotColor} flex-shrink-0 mt-1.5`} />
+        {!isLast && <div className="w-px flex-1 bg-gray-200 my-1" />}
+      </div>
+      {/* Content */}
+      <div className={`flex-1 pb-4 min-w-0`}>
+        <button
+          onClick={handleClick}
+          className="flex items-start gap-2 w-full text-left group"
+        >
+          <span className="text-gray-400 text-xs mt-0.5 select-none">{isExpanded ? '▼' : '▶'}</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <EventTypeIcon type={event.type} />
+              {event.stage && (
+                <span className={`text-sm font-medium ${stageColors.text} capitalize`}>{event.stage}</span>
+              )}
+              {statusBadge}
+              <span className="text-xs text-gray-400 tabular-nums">{dateStr} {timeStr}</span>
+            </div>
+            <p className="text-sm text-gray-700 mt-0.5">{event.summary}</p>
+            {/* Quick stats for traces */}
+            {event.type === 'trace' && (
+              <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-1">
+                {event.data?.model && <span>{event.data.model}</span>}
+                {event.data?.total_tokens != null && <span>{(event.data.total_tokens || 0).toLocaleString()} tokens</span>}
+                {event.data?.latency_ms != null && <span>{((event.data.latency_ms || 0) / 1000).toFixed(1)}s</span>}
+                {event.data?.estimated_cost_usd != null && <span>${(event.data.estimated_cost_usd || 0).toFixed(4)}</span>}
+              </div>
+            )}
+            {/* Claim details */}
+            {event.type === 'claim' && (
+              <div className="flex flex-wrap gap-3 text-xs mt-1">
+                {event.data?.status && (
+                  <span className={`px-1.5 py-0.5 rounded capitalize ${
+                    event.data.status === 'verified' ? 'bg-green-50 text-green-700' :
+                    event.data.status === 'disputed' ? 'bg-red-50 text-red-700' :
+                    event.data.status === 'unverifiable' ? 'bg-yellow-50 text-yellow-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>{event.data.status}</span>
+                )}
+                {event.data?.confidence != null && (
+                  <span className="text-gray-500">{Math.round((event.data.confidence || 0) * 100)}% confidence</span>
+                )}
+              </div>
+            )}
+            {/* Error messages */}
+            {event.data?.error_message && (
+              <p className="text-xs text-red-500 mt-1 bg-red-50 p-2 rounded">{event.data.error_message}</p>
+            )}
+          </div>
+        </button>
+
+        {/* Expanded content */}
+        {isExpanded && (
+          <div className="mt-3 ml-5">
+            {event.type === 'trace' && (
+              <TracePayloadViewer
+                payload={payload}
+                isLoading={isLoadingPayload}
+              />
+            )}
+            {event.type === 'claim' && (
+              <ClaimEventDetail event={event} />
+            )}
+            {event.type === 'revision' && (
+              <RevisionEventDetail event={event} />
+            )}
+            {event.type === 'source' && (
+              <SourceEventDetail event={event} />
+            )}
+            {event.detail && event.type !== 'claim' && event.type !== 'revision' && event.type !== 'source' && (
+              <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">{event.detail}</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EventTypeIcon({ type }: { type: string }) {
+  const icons: Record<string, string> = {
+    trace: '🤖',
+    claim: '📋',
+    source: '🔗',
+    revision: '📝',
+    stage_change: '🔄',
+  };
+  return <span className="text-sm">{icons[type] || '•'}</span>;
+}
+
+/* ---- Trace Payload Viewer ---- */
+function TracePayloadViewer({ payload, isLoading }: { payload?: TracePayloadResponse; isLoading: boolean }) {
+  const [showSystem, setShowSystem] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
+  const [showResponse, setShowResponse] = useState(true);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-gray-500 py-3">
+        <svg className="animate-spin h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Loading trace payload...
+      </div>
+    );
+  }
+
+  if (!payload) {
+    return <div className="text-xs text-gray-400 py-2">Payload not available</div>;
+  }
+
+  const { parsed_request, response_text } = payload;
+
+  return (
+    <div className="space-y-3 border border-gray-200 rounded-lg overflow-hidden">
+      {/* System Prompt */}
+      {parsed_request?.system && (
+        <div>
+          <button
+            onClick={() => setShowSystem(!showSystem)}
+            className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition text-left"
+          >
+            <span className="text-gray-400 text-xs select-none">{showSystem ? '▼' : '▶'}</span>
+            <span className="text-xs font-medium text-gray-700">System Prompt</span>
+            <span className="text-xs text-gray-400 ml-auto">{(parsed_request.system || '').length} chars</span>
+          </button>
+          {showSystem && (
+            <div className="px-3 py-2 max-h-64 overflow-y-auto">
+              <pre className="font-mono text-xs text-gray-600 whitespace-pre-wrap break-words">{parsed_request.system}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Messages (user prompts) */}
+      {parsed_request?.messages && parsed_request.messages.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowMessages(!showMessages)}
+            className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition text-left border-t border-gray-200"
+          >
+            <span className="text-gray-400 text-xs select-none">{showMessages ? '▼' : '▶'}</span>
+            <span className="text-xs font-medium text-gray-700">Messages ({parsed_request.messages.length})</span>
+            {parsed_request.model && <span className="text-xs text-gray-400 ml-auto">{parsed_request.model}</span>}
+          </button>
+          {showMessages && (
+            <div className="px-3 py-2 space-y-2 max-h-64 overflow-y-auto">
+              {parsed_request.messages.map((msg, i) => (
+                <div key={i} className="border-l-2 border-gray-200 pl-3">
+                  <span className={`text-xs font-medium uppercase ${
+                    msg.role === 'user' ? 'text-blue-600' : msg.role === 'assistant' ? 'text-green-600' : 'text-gray-500'
+                  }`}>{msg.role}</span>
+                  <pre className="font-mono text-xs text-gray-600 whitespace-pre-wrap break-words mt-0.5">
+                    {typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2)}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Response */}
+      {response_text && (
+        <div>
+          <button
+            onClick={() => setShowResponse(!showResponse)}
+            className="w-full flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 transition text-left border-t border-gray-200"
+          >
+            <span className="text-gray-400 text-xs select-none">{showResponse ? '▼' : '▶'}</span>
+            <span className="text-xs font-medium text-gray-700">Response</span>
+            <span className="text-xs text-gray-400 ml-auto">{(response_text || '').length} chars</span>
+          </button>
+          {showResponse && (
+            <div className="px-3 py-2 max-h-96 overflow-y-auto">
+              <pre className="font-mono text-xs text-gray-600 whitespace-pre-wrap break-words">{response_text}</pre>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---- Claim Event Detail ---- */
+function ClaimEventDetail({ event }: { event: AuditTimelineEvent }) {
+  const data = event.data || {};
+  return (
+    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+      {data.claim_text && (
+        <div>
+          <span className="text-xs font-medium text-gray-500">Claim:</span>
+          <p className="text-sm text-gray-800 mt-0.5">{data.claim_text}</p>
+        </div>
+      )}
+      {data.verification_notes && (
+        <div>
+          <span className="text-xs font-medium text-gray-500">Verification Notes:</span>
+          <p className="text-xs text-gray-600 mt-0.5">{data.verification_notes}</p>
+        </div>
+      )}
+      {data.context && (
+        <div>
+          <span className="text-xs font-medium text-gray-500">Context:</span>
+          <p className="text-xs text-gray-600 mt-0.5">{data.context}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---- Revision Event Detail ---- */
+function RevisionEventDetail({ event }: { event: AuditTimelineEvent }) {
+  const data = event.data || {};
+  return (
+    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+      <div className="flex flex-wrap gap-4 text-xs text-gray-600">
+        {data.revision_number != null && <span>Revision #{data.revision_number}</span>}
+        {data.changed_by && <span>By: {data.changed_by}</span>}
+        {data.change_type && <span>Type: {data.change_type}</span>}
+      </div>
+      {data.diff_summary && (
+        <div>
+          <span className="text-xs font-medium text-gray-500">Changes:</span>
+          <p className="text-xs text-gray-600 mt-0.5">{data.diff_summary}</p>
+        </div>
+      )}
+      {data.feedback && (
+        <div>
+          <span className="text-xs font-medium text-gray-500">Feedback:</span>
+          <p className="text-xs text-gray-600 mt-0.5">{data.feedback}</p>
+        </div>
+      )}
+      {data.agent_notes && (
+        <div>
+          <span className="text-xs font-medium text-gray-500">Agent Notes:</span>
+          <p className="text-xs text-gray-600 mt-0.5">{data.agent_notes}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---- Source Event Detail ---- */
+function SourceEventDetail({ event }: { event: AuditTimelineEvent }) {
+  const data = event.data || {};
+  return (
+    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+      {data.url && (
+        <a href={data.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline block truncate">
+          {data.url}
+        </a>
+      )}
+      {data.snippet && <p className="text-xs text-gray-600">{data.snippet}</p>}
+      <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+        {data.source_type && <span>Type: {data.source_type}</span>}
+        {data.reliability && (
+          <span className={`px-1.5 py-0.5 rounded capitalize ${
+            data.reliability === 'high' ? 'bg-green-50 text-green-700' :
+            data.reliability === 'medium' ? 'bg-yellow-50 text-yellow-700' :
+            'bg-red-50 text-red-700'
+          }`}>{data.reliability}</span>
+        )}
+        {data.author && <span>By: {data.author}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ---- Fallback Traces View (when audit API fails) ---- */
+function FallbackTracesView({ traces }: { traces: Trace[] }) {
   const sortedTraces = [...traces].sort((a, b) => new Date(a.created_at || '').getTime() - new Date(b.created_at || '').getTime());
   const totalTokens = traces.reduce((s, t) => s + (t.total_tokens || 0), 0);
   const totalLatency = traces.reduce((s, t) => s + (t.latency_ms || 0), 0);
@@ -237,36 +780,31 @@ function TracesTab({ traces }: { traces: Trace[] }) {
 
   return (
     <div className="space-y-4">
-      {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-gray-50 rounded-lg p-3 text-center">
-          <div className="text-lg font-semibold text-gray-900 tabular-nums">{totalTokens.toLocaleString()}</div>
+          <div className="text-lg font-semibold text-gray-900 tabular-nums">{(totalTokens || 0).toLocaleString()}</div>
           <div className="text-xs text-gray-500">Total Tokens</div>
         </div>
         <div className="bg-gray-50 rounded-lg p-3 text-center">
-          <div className="text-lg font-semibold text-gray-900 tabular-nums">{(totalLatency / 1000).toFixed(1)}s</div>
+          <div className="text-lg font-semibold text-gray-900 tabular-nums">{((totalLatency || 0) / 1000).toFixed(1)}s</div>
           <div className="text-xs text-gray-500">Total Latency</div>
         </div>
         <div className="bg-gray-50 rounded-lg p-3 text-center">
-          <div className="text-lg font-semibold text-gray-900 tabular-nums">${totalCost.toFixed(4)}</div>
+          <div className="text-lg font-semibold text-gray-900 tabular-nums">${(totalCost || 0).toFixed(4)}</div>
           <div className="text-xs text-gray-500">Est. Cost</div>
         </div>
       </div>
-
-      {/* Timeline */}
       <div className="space-y-0">
         {sortedTraces.map((trace, i) => {
           const stageColors = STAGE_COLORS[trace.stage] || STAGE_COLORS.failed;
           const isLast = i === sortedTraces.length - 1;
           return (
             <div key={trace.id} className="flex gap-4">
-              {/* Timeline line */}
               <div className="flex flex-col items-center">
                 <div className={`w-3 h-3 rounded-full ${stageColors.dot} flex-shrink-0 mt-1.5`} />
                 {!isLast && <div className="w-px flex-1 bg-gray-200 my-1" />}
               </div>
-              {/* Content */}
-              <div className={`flex-1 pb-4 ${isLast ? '' : ''}`}>
+              <div className="flex-1 pb-4">
                 <div className="flex items-center gap-2 mb-1">
                   <span className={`text-sm font-medium ${stageColors.text} capitalize`}>{trace.stage}</span>
                   <span className={`px-1.5 py-0.5 text-xs rounded ${trace.status === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
@@ -277,7 +815,7 @@ function TracesTab({ traces }: { traces: Trace[] }) {
                   <span>{trace.model}</span>
                   <span>{(trace.total_tokens || 0).toLocaleString()} tokens</span>
                   <span>{((trace.latency_ms || 0) / 1000).toFixed(1)}s</span>
-                  {trace.estimated_cost_usd && <span>${trace.estimated_cost_usd.toFixed(4)}</span>}
+                  {trace.estimated_cost_usd != null && <span>${(trace.estimated_cost_usd || 0).toFixed(4)}</span>}
                 </div>
                 {trace.error_message && (
                   <p className="text-xs text-red-500 mt-1 bg-red-50 p-2 rounded">{trace.error_message}</p>
@@ -291,6 +829,7 @@ function TracesTab({ traces }: { traces: Trace[] }) {
   );
 }
 
+/* ========== Platforms Tab ========== */
 function PlatformsTab({ platforms }: { platforms: Record<string, string> | null }) {
   if (!platforms || Object.keys(platforms).length === 0) {
     return <EmptyState title="No platform versions" description="Platform-specific content hasn't been generated yet" />;
@@ -307,6 +846,7 @@ function PlatformsTab({ platforms }: { platforms: Record<string, string> | null 
   );
 }
 
+/* ========== Meta Tab ========== */
 function MetaTab({ content, tags }: { content: Content; tags: string[] | null }) {
   const fields = [
     { label: 'Meta Description', value: content.meta_description },

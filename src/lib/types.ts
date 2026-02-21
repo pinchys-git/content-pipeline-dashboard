@@ -287,3 +287,46 @@ export interface ContentLogsResponse {
   by_stage: Record<string, ContentLogsSummary>;
   traces: Trace[];
 }
+
+// Audit trail types
+export interface AuditTimelineEvent {
+  timestamp: string;
+  type: 'trace' | 'claim' | 'source' | 'revision' | 'stage_change';
+  stage?: string;
+  summary: string;
+  detail?: string;
+  data: Record<string, any>;
+}
+
+export interface AuditSummary {
+  total_calls: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_tokens: number;
+  total_latency_ms: number;
+  estimated_cost_usd: number;
+  by_stage: Record<string, { calls: number; tokens: number; cost: number; latency_ms: number }>;
+  claims: { total: number; verified: number; disputed: number; unverifiable: number; pending: number };
+  revisions: number;
+}
+
+export interface AuditResponse {
+  content: Content;
+  summary: AuditSummary;
+  timeline: AuditTimelineEvent[];
+  traces: Trace[];
+  claims: Claim[];
+  sources: Source[];
+  revisions: Revision[];
+}
+
+export interface TracePayloadResponse {
+  trace: Trace;
+  parsed_request: {
+    system: string;
+    messages: Array<{ role: string; content: string }>;
+    model: string;
+    max_tokens: number;
+  } | null;
+  response_text: string | null;
+}

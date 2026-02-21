@@ -227,33 +227,85 @@ export default function ObservabilityPage() {
 
       {/* Top Articles by Cost */}
       {top_articles && top_articles.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-xl">
-          <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
-            <h3 className="text-sm font-medium text-gray-900">Top Articles by Cost</h3>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {top_articles.slice(0, 20).map((a: any, i: number) => (
-              <button
-                key={a.content_id}
-                onClick={() => navigate(`/content/${a.content_id}`)}
-                className="w-full px-4 sm:px-6 py-3.5 flex items-center gap-3 sm:gap-4 hover:bg-gray-50 transition text-left"
-              >
-                <span className="text-xs text-gray-400 tabular-nums w-6 text-right flex-shrink-0">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900 truncate">{a.title || 'Untitled'}</div>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs text-gray-400 tabular-nums">{formatNumber(a.llm_calls ?? a.calls)} calls</span>
-                    <span className="text-xs text-gray-400">·</span>
-                    <span className="text-xs text-gray-400 tabular-nums">{formatNumber(a.total_tokens)} tokens</span>
-                  </div>
-                </div>
-                <StageBadge stage={a.current_stage || a.stage} />
-                <span className="text-sm font-medium text-gray-900 tabular-nums flex-shrink-0">{formatCost(a.estimated_cost_usd)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <TopArticlesSection articles={top_articles} navigate={navigate} />
       )}
+    </div>
+  );
+}
+
+const ARTICLE_STAGE_FILTERS = ['all', 'research', 'draft', 'verify', 'format', 'edit', 'review', 'scheduled', 'published', 'failed'] as const;
+
+function TopArticlesSection({ articles, navigate }: { articles: any[]; navigate: (path: string) => void }) {
+  const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState<string>('all');
+
+  const filtered = articles.filter((a: any) => {
+    const matchesSearch = !search || (a.title || '').toLowerCase().includes(search.toLowerCase());
+    const articleStage = a.current_stage || a.stage || '';
+    const matchesStage = stageFilter === 'all' || articleStage === stageFilter;
+    return matchesSearch && matchesStage;
+  });
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl">
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-gray-900">Top Articles by Cost</h3>
+          <span className="text-xs text-gray-400">{filtered.length} of {articles.length}</span>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search input */}
+          <div className="relative flex-1">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search articles..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            />
+          </div>
+          {/* Stage filter dropdown */}
+          <select
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 capitalize"
+          >
+            {ARTICLE_STAGE_FILTERS.map((s) => (
+              <option key={s} value={s}>{s === 'all' ? 'All Stages' : s}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {filtered.length === 0 ? (
+          <div className="px-6 py-8 text-center text-sm text-gray-400">
+            No articles match your filters
+          </div>
+        ) : (
+          filtered.slice(0, 20).map((a: any, i: number) => (
+            <button
+              key={a.content_id}
+              onClick={() => navigate(`/content/${a.content_id}`)}
+              className="w-full px-4 sm:px-6 py-3.5 flex items-center gap-3 sm:gap-4 hover:bg-gray-50 transition text-left"
+            >
+              <span className="text-xs text-gray-400 tabular-nums w-6 text-right flex-shrink-0">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-900 truncate">{a.title || 'Untitled'}</div>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="text-xs text-gray-400 tabular-nums">{formatNumber(a.llm_calls ?? a.calls)} calls</span>
+                  <span className="text-xs text-gray-400">·</span>
+                  <span className="text-xs text-gray-400 tabular-nums">{formatNumber(a.total_tokens)} tokens</span>
+                </div>
+              </div>
+              <StageBadge stage={a.current_stage || a.stage} />
+              <span className="text-sm font-medium text-gray-900 tabular-nums flex-shrink-0">{formatCost(a.estimated_cost_usd)}</span>
+            </button>
+          ))
+        )}
+      </div>
     </div>
   );
 }
