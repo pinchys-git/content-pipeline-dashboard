@@ -15,20 +15,24 @@ const PERIOD_OPTIONS = [
   { label: '90 days', value: 90 },
 ];
 
-function formatNumber(n: number): string {
+function formatNumber(n: number | null | undefined): string {
+  if (n == null) return '—';
   return n.toLocaleString();
 }
 
-function formatCost(n: number): string {
+function formatCost(n: number | null | undefined): string {
+  if (n == null) return '$0.0000';
   return `$${n.toFixed(4)}`;
 }
 
-function formatLatency(ms: number): string {
+function formatLatency(ms: number | null | undefined): string {
+  if (ms == null || ms === 0) return '—';
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function formatTokens(n: number): string {
+function formatTokens(n: number | null | undefined): string {
+  if (n == null) return '0';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return n.toLocaleString();
@@ -81,12 +85,12 @@ export default function ObservabilityPage() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
-          { label: 'LLM Calls', value: formatNumber(totals.total_calls), icon: '⚡' },
-          { label: 'Total Tokens', value: formatTokens(totals.total_tokens), icon: '◈' },
-          { label: 'Est. Cost', value: formatCost(totals.estimated_cost_usd), icon: '💰' },
-          { label: 'Avg Latency', value: formatLatency(totals.avg_latency_ms), icon: '⏱' },
-          { label: 'Articles', value: formatNumber(totals.total_articles), icon: '📄' },
-          { label: 'Runs', value: formatNumber(totals.total_runs), icon: '▸' },
+          { label: 'LLM Calls', value: formatNumber(totals?.total_calls), icon: '⚡' },
+          { label: 'Total Tokens', value: formatTokens(totals?.total_tokens), icon: '◈' },
+          { label: 'Est. Cost', value: formatCost(totals?.estimated_cost_usd), icon: '💰' },
+          { label: 'Avg Latency', value: formatLatency(totals?.avg_latency_ms), icon: '⏱' },
+          { label: 'Articles', value: formatNumber(totals?.total_content ?? totals?.total_articles), icon: '📄' },
+          { label: 'Runs', value: formatNumber(totals?.total_runs), icon: '▸' },
         ].map((stat) => (
           <div key={stat.label} className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -118,10 +122,10 @@ export default function ObservabilityPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {by_model.map((m) => {
-                  const costPct = totals.estimated_cost_usd > 0
-                    ? (m.estimated_cost_usd / totals.estimated_cost_usd) * 100
-                    : 0;
+                {by_model.map((m: any) => {
+                  const mCost = m.estimated_cost_usd || 0;
+                  const totalCost = totals?.estimated_cost_usd || 1;
+                  const costPct = totalCost > 0 ? (mCost / totalCost) * 100 : 0;
                   return (
                     <tr key={m.model} className="hover:bg-gray-50 transition">
                       <td className="px-4 sm:px-6 py-3">
@@ -150,12 +154,12 @@ export default function ObservabilityPage() {
               <tfoot>
                 <tr className="border-t border-gray-200 bg-gray-50">
                   <td className="px-4 sm:px-6 py-3 font-medium text-gray-900">Total</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatNumber(totals.total_calls)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-500">{formatNumber(totals.total_input_tokens)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums text-gray-500">{formatNumber(totals.total_output_tokens)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatNumber(totals.total_tokens)}</td>
-                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCost(totals.estimated_cost_usd)}</td>
-                  <td className="px-4 sm:px-6 py-3 text-right tabular-nums text-gray-500">{formatLatency(totals.avg_latency_ms)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatNumber(totals?.total_calls)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-500">{formatNumber(totals?.total_input_tokens)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums text-gray-500">{formatNumber(totals?.total_output_tokens)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatNumber(totals?.total_tokens)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums font-medium text-gray-900">{formatCost(totals?.estimated_cost_usd)}</td>
+                  <td className="px-4 sm:px-6 py-3 text-right tabular-nums text-gray-500">{formatLatency(totals?.avg_latency_ms)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -171,15 +175,16 @@ export default function ObservabilityPage() {
           </div>
           <div className="p-4 sm:p-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {by_stage.map((s) => {
-                const colors = STAGE_COLORS[s.stage] || STAGE_COLORS.research;
-                const tokenPct = totals.total_tokens > 0
-                  ? (s.total_tokens / totals.total_tokens) * 100
-                  : 0;
+              {by_stage.map((s: any) => {
+                const stageName = s.stage_group || s.stage || 'unknown';
+                const colors = STAGE_COLORS[stageName] || STAGE_COLORS.research;
+                const stageTokens = s.total_tokens || 0;
+                const totalTok = totals?.total_tokens || 1;
+                const tokenPct = totalTok > 0 ? (stageTokens / totalTok) * 100 : 0;
                 return (
-                  <div key={s.stage} className={`${colors.bg} rounded-xl p-4`}>
+                  <div key={stageName} className={`${colors.bg} rounded-xl p-4`}>
                     <div className="flex items-center justify-between mb-3">
-                      <span className={`text-sm font-medium capitalize ${colors.text}`}>{s.stage}</span>
+                      <span className={`text-sm font-medium capitalize ${colors.text}`}>{stageName}</span>
                       <span className={`text-xs ${colors.text} opacity-70`}>{tokenPct.toFixed(1)}% of tokens</span>
                     </div>
                     <div className="space-y-2">
@@ -189,7 +194,7 @@ export default function ObservabilityPage() {
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className={`${colors.text} opacity-70`}>Tokens</span>
-                        <span className={`font-medium ${colors.text} tabular-nums`}>{formatNumber(s.total_tokens)}</span>
+                        <span className={`font-medium ${colors.text} tabular-nums`}>{formatNumber(stageTokens)}</span>
                       </div>
                       <div className="flex justify-between text-xs">
                         <span className={`${colors.text} opacity-70`}>Cost</span>
@@ -227,7 +232,7 @@ export default function ObservabilityPage() {
             <h3 className="text-sm font-medium text-gray-900">Top Articles by Cost</h3>
           </div>
           <div className="divide-y divide-gray-50">
-            {top_articles.slice(0, 20).map((a, i) => (
+            {top_articles.slice(0, 20).map((a: any, i: number) => (
               <button
                 key={a.content_id}
                 onClick={() => navigate(`/content/${a.content_id}`)}
@@ -237,12 +242,12 @@ export default function ObservabilityPage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-900 truncate">{a.title || 'Untitled'}</div>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs text-gray-400 tabular-nums">{formatNumber(a.calls)} calls</span>
+                    <span className="text-xs text-gray-400 tabular-nums">{formatNumber(a.llm_calls ?? a.calls)} calls</span>
                     <span className="text-xs text-gray-400">·</span>
                     <span className="text-xs text-gray-400 tabular-nums">{formatNumber(a.total_tokens)} tokens</span>
                   </div>
                 </div>
-                <StageBadge stage={a.stage} />
+                <StageBadge stage={a.current_stage || a.stage} />
                 <span className="text-sm font-medium text-gray-900 tabular-nums flex-shrink-0">{formatCost(a.estimated_cost_usd)}</span>
               </button>
             ))}
@@ -257,10 +262,10 @@ export default function ObservabilityPage() {
 function DailyTrendChart({ data }: { data: StatsDailyTrend[] }) {
   const [metric, setMetric] = useState<'calls' | 'tokens' | 'cost'>('tokens');
 
-  const values = data.map((d) => {
-    if (metric === 'calls') return d.calls;
-    if (metric === 'tokens') return d.total_tokens;
-    return d.estimated_cost_usd;
+  const values = data.map((d: any) => {
+    if (metric === 'calls') return d.calls || 0;
+    if (metric === 'tokens') return d.tokens ?? d.total_tokens ?? 0;
+    return d.estimated_cost_usd ?? 0;
   });
   const maxVal = Math.max(...values, 1);
 
@@ -298,8 +303,8 @@ function DailyTrendChart({ data }: { data: StatsDailyTrend[] }) {
       <div className="p-4 sm:p-6">
         <div className="flex items-end gap-[3px] sm:gap-1 h-40">
           {data.map((d, i) => {
-            const val = values[i];
-            const pct = (val / maxVal) * 100;
+            const val = values[i] || 0;
+            const pct = maxVal > 0 ? (val / maxVal) * 100 : 0;
             return (
               <div
                 key={d.date}

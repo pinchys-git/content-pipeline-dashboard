@@ -221,7 +221,8 @@ export interface StatsTotals {
   total_output_tokens: number;
   estimated_cost_usd: number;
   avg_latency_ms: number;
-  total_articles: number;
+  total_content: number;      // API field name
+  total_articles?: number;    // Alias (for compat)
   total_runs: number;
 }
 
