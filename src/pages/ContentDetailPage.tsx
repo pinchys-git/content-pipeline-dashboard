@@ -471,6 +471,8 @@ function ArticleTab({ markdown }: { markdown: string }) {
 
 /* ========== Claims Tab ========== */
 function ClaimsTab({ claims, sources }: { claims: Claim[]; sources: Source[] }) {
+  const [showSuperseded, setShowSuperseded] = useState(false);
+
   if (claims.length === 0) return <EmptyState title="No claims" description="No claims have been extracted for this content" />;
 
   const sourcesByClaim = sources.reduce<Record<string, Source[]>>((acc, src) => {
@@ -481,51 +483,122 @@ function ClaimsTab({ claims, sources }: { claims: Claim[]; sources: Source[] }) 
     return acc;
   }, {});
 
+  // Build claim lookup by ID for lineage
+  const claimsById = claims.reduce<Record<string, Claim>>((acc, c) => {
+    acc[c.id] = c;
+    return acc;
+  }, {});
+
+  const activeClaims = claims.filter(c => c.resolution_status !== 'superseded');
+  const supersededClaims = claims.filter(c => c.resolution_status === 'superseded');
+
+  const renderClaim = (claim: Claim, dimmed: boolean) => {
+    const colors = CLAIM_STATUS_COLORS[claim.status] || CLAIM_STATUS_COLORS.pending;
+    const claimSources = sourcesByClaim[claim.id] || [];
+    const previousClaim = claim.previous_claim_id ? claimsById[claim.previous_claim_id] : null;
+
+    return (
+      <div key={claim.id} className={`border border-gray-100 rounded-lg p-4 ${dimmed ? 'opacity-50 bg-gray-50' : ''}`}>
+        <div className="flex items-start gap-3">
+          <div className="flex flex-col gap-1 flex-shrink-0 mt-0.5">
+            <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${colors.bg} ${colors.text} capitalize`}>
+              {claim.status}
+            </span>
+            {claim.resolution_status === 'superseded' && (
+              <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-600">
+                Superseded
+              </span>
+            )}
+            {claim.resolution_status && claim.resolution_status !== 'superseded' && (
+              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                claim.resolution_status === 'corrected' ? 'bg-blue-50 text-blue-700' :
+                claim.resolution_status === 'flagged_for_review' ? 'bg-amber-50 text-amber-700' :
+                claim.resolution_status === 'verified' ? 'bg-green-50 text-green-700' :
+                'bg-gray-100 text-gray-600'
+              }`}>
+                {claim.resolution_status === 'corrected' ? '✏️ Corrected' :
+                 claim.resolution_status === 'flagged_for_review' ? '⚠️ Review' :
+                 claim.resolution_status === 'verified' ? '✓ Verified' :
+                 claim.resolution_status}
+              </span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            {claim.suggested_revision ? (
+              <div className="text-sm">
+                <span className="text-gray-900">{claim.claim_text}</span>
+                <span className="mx-2 text-gray-400">→</span>
+                <span className="text-blue-700 font-medium">&quot;{claim.suggested_revision}&quot;</span>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-900">{claim.claim_text}</p>
+            )}
+            {claim.revision_loop != null && (
+              <span className="inline-flex px-1.5 py-0.5 text-xs rounded bg-gray-100 text-gray-500 mt-1">
+                Loop #{claim.revision_loop}
+              </span>
+            )}
+            {previousClaim && (
+              <div className="mt-2 p-2 bg-gray-50 rounded-md border border-gray-100 text-xs text-gray-500">
+                <span className="font-medium">Revised from:</span> &quot;{previousClaim.claim_text}&quot;
+              </div>
+            )}
+            {claim.context && <p className="text-xs text-gray-400 mt-1">{claim.context}</p>}
+            {claim.verification_notes && (
+              <p className="text-xs text-gray-500 mt-2 bg-gray-50 rounded-md p-2">{claim.verification_notes}</p>
+            )}
+            {claimSources.length > 0 && (
+              <div className="mt-2 space-y-1">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Sources ({claimSources.length})</p>
+                {claimSources.map((src) => {
+                  const srcUrl = src.resolved_url || src.url;
+                  const srcTitle = src.page_title || src.title;
+                  return (
+                    <div key={src.id} className="flex items-center gap-2 text-xs">
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                        src.reliability === 'high' ? 'bg-green-400' : src.reliability === 'medium' ? 'bg-yellow-400' : 'bg-red-400'
+                      }`} />
+                      {srcUrl ? (
+                        <a href={srcUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
+                          {srcTitle || srcUrl}
+                        </a>
+                      ) : (
+                        <span className="text-gray-500">{srcTitle || 'Unknown source'}</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="text-right flex-shrink-0">
+            <div className="text-sm font-medium text-gray-900 tabular-nums">{Math.round((claim.confidence ?? 0) * 100)}%</div>
+            <div className="text-xs text-gray-400">confidence</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-3">
-      {claims.map((claim) => {
-        const colors = CLAIM_STATUS_COLORS[claim.status] || CLAIM_STATUS_COLORS.pending;
-        const claimSources = sourcesByClaim[claim.id] || [];
-        return (
-          <div key={claim.id} className="border border-gray-100 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${colors.bg} ${colors.text} capitalize flex-shrink-0 mt-0.5`}>
-                {claim.status}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-900">{claim.claim_text}</p>
-                {claim.context && <p className="text-xs text-gray-400 mt-1">{claim.context}</p>}
-                {claim.verification_notes && (
-                  <p className="text-xs text-gray-500 mt-2 bg-gray-50 rounded-md p-2">{claim.verification_notes}</p>
-                )}
-                {claimSources.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Sources ({claimSources.length})</p>
-                    {claimSources.map((src) => (
-                      <div key={src.id} className="flex items-center gap-2 text-xs">
-                        <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                          src.reliability === 'high' ? 'bg-green-400' : src.reliability === 'medium' ? 'bg-yellow-400' : 'bg-red-400'
-                        }`} />
-                        {src.url ? (
-                          <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
-                            {src.title || src.url}
-                          </a>
-                        ) : (
-                          <span className="text-gray-500">{src.title || 'Unknown source'}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-sm font-medium text-gray-900 tabular-nums">{Math.round((claim.confidence ?? 0) * 100)}%</div>
-                <div className="text-xs text-gray-400">confidence</div>
-              </div>
+      {activeClaims.map((claim) => renderClaim(claim, false))}
+      {supersededClaims.length > 0 && (
+        <div className="pt-2">
+          <button
+            onClick={() => setShowSuperseded(!showSuperseded)}
+            className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition"
+          >
+            <span className="select-none">{showSuperseded ? '▼' : '▶'}</span>
+            <span>Show superseded claims ({supersededClaims.length})</span>
+          </button>
+          {showSuperseded && (
+            <div className="mt-2 space-y-3">
+              {supersededClaims.map((claim) => renderClaim(claim, true))}
             </div>
-          </div>
-        );
-      })}
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -593,17 +666,19 @@ function SourcesTab({ sources, claims }: { sources: Source[]; claims: Claim[] })
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-800">{claim?.claim_text || 'Unknown claim'}</p>
+                  {claim?.suggested_revision ? (
+                    <div className="text-sm">
+                      <span className="text-gray-800">{claim?.claim_text || 'Unknown claim'}</span>
+                      <span className="mx-2 text-gray-400">→</span>
+                      <span className="text-blue-700 font-medium">Suggested: &quot;{claim.suggested_revision}&quot;</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-800">{claim?.claim_text || 'Unknown claim'}</p>
+                  )}
                   {claim?.verification_notes && (
                     <div className="mt-2 p-2.5 bg-white rounded-lg border border-gray-100 text-xs text-gray-600">
                       <span className="font-medium text-gray-500">Verification: </span>
                       {claim.verification_notes}
-                    </div>
-                  )}
-                  {claim?.suggested_revision && (
-                    <div className="mt-2 p-2.5 bg-blue-50 rounded-lg border border-blue-100 text-xs text-blue-800">
-                      <span className="font-medium text-blue-600">Suggested correction: </span>
-                      {claim.suggested_revision}
                     </div>
                   )}
                 </div>
@@ -643,28 +718,35 @@ function SourcesTab({ sources, claims }: { sources: Source[]; claims: Claim[] })
 /* ---- Source Row (reusable) ---- */
 function SourceRow({ source }: { source: Source }) {
   const reliabilityColors = RELIABILITY_COLORS[source.reliability] || RELIABILITY_COLORS.medium;
+  const displayTitle = source.page_title || source.title;
+  const displayUrl = source.resolved_url || source.url;
+  const displayDate = source.publish_date || source.published_date;
+
   return (
     <div className="px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">📄</span>
-            {source.url ? (
-              <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline truncate">
-                {source.title || source.url}
+            <span className="text-xs text-gray-400 flex-shrink-0">📄</span>
+            {displayUrl ? (
+              <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline line-clamp-2">
+                {displayTitle || displayUrl}
               </a>
             ) : (
-              <span className="text-sm font-medium text-gray-700">{source.title || 'Unknown source'}</span>
+              <span className="text-sm font-medium text-gray-700">{displayTitle || 'Unknown source'}</span>
             )}
             {source.author && <span className="text-xs text-gray-400 flex-shrink-0">by {source.author}</span>}
           </div>
+          {source.page_description && (
+            <p className="text-xs text-gray-500 mt-1 ml-5 line-clamp-2">{source.page_description}</p>
+          )}
+          {displayDate && (
+            <p className="text-xs text-gray-400 mt-1 ml-5">📅 {formatDate(displayDate)}</p>
+          )}
           {source.snippet && (
             <p className="text-xs text-gray-600 mt-1.5 ml-5 bg-gray-50 rounded-md p-2 border border-gray-100">
               {source.snippet}
             </p>
-          )}
-          {source.published_date && (
-            <p className="text-xs text-gray-400 mt-1 ml-5">{formatDate(source.published_date)}</p>
           )}
         </div>
         <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${reliabilityColors.bg} ${reliabilityColors.text} capitalize flex-shrink-0`}>

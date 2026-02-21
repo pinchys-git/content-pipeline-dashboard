@@ -88,7 +88,9 @@ export interface Claim {
   confidence: number | null;
   verification_notes: string | null;
   suggested_revision: string | null;
-  resolution_status: string | null;  // 'verified' | 'corrected' | 'flagged_for_review' | null
+  resolution_status: string | null;  // 'verified' | 'corrected' | 'flagged_for_review' | 'superseded' | null
+  previous_claim_id: string | null;
+  revision_loop: number | null;
 }
 
 export interface Source {
@@ -102,6 +104,11 @@ export interface Source {
   snippet: string | null;
   source_type: string | null;
   reliability: 'high' | 'medium' | 'low';
+  resolved_url: string | null;
+  page_title: string | null;
+  page_description: string | null;
+  publish_date: string | null;
+  last_modified: string | null;
 }
 
 export interface Trace {
