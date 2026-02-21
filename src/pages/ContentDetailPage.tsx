@@ -758,13 +758,22 @@ function SourceRow({ source }: { source: Source }) {
           </div>
           {/* Show domain separately when we have a real title */}
           {displayTitle && domain && (
-            <p className="text-xs text-gray-400 mt-0.5 ml-5">{domain}</p>
+            <span className="text-xs text-gray-400 mt-0.5 ml-5 flex items-center gap-2">
+              {domain}
+              {source.author && <span>· {source.author}</span>}
+            </span>
+          )}
+          {!displayTitle && source.author && (
+            <p className="text-xs text-gray-400 mt-0.5 ml-5">by {source.author}</p>
           )}
           {source.page_description && (
             <p className="text-xs text-gray-500 mt-1 ml-5 line-clamp-2">{source.page_description}</p>
           )}
-          {displayDate && (
-            <p className="text-xs text-gray-400 mt-1 ml-5">📅 {formatDate(displayDate)}</p>
+          {(displayDate || source.last_modified) && (
+            <p className="text-xs text-gray-400 mt-1 ml-5 flex items-center gap-3">
+              {displayDate && <span>📅 Published {formatDate(displayDate)}</span>}
+              {source.last_modified && <span>✏️ Updated {formatDate(source.last_modified)}</span>}
+            </p>
           )}
           {isUsefulSnippet && (
             <p className="text-xs text-gray-600 mt-1.5 ml-5 bg-gray-50 rounded-md p-2 border border-gray-100">
