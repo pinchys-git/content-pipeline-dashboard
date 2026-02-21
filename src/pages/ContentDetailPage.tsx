@@ -29,8 +29,6 @@ export default function ContentDetailPage() {
 
   // Action states
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDraft, setEditDraft] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [rejectMode, setRejectMode] = useState(false);
@@ -68,29 +66,6 @@ export default function ContentDetailPage() {
       setConfirmingDelete(false);
     }
   }, [id, navigate, showToast]);
-
-  const handleEdit = useCallback(() => {
-    if (!content) return;
-    setEditDraft(content.draft_md || content.final_md || '');
-    setIsEditing(true);
-    setTab('Article');
-  }, [content]);
-
-  const handleSaveEdit = useCallback(async () => {
-    if (!id) return;
-    setActionLoading('edit');
-    try {
-      const updated = await updateContent(id, { draft_md: editDraft } as any);
-      setContent(prev => prev ? { ...prev, ...updated, draft_md: editDraft } : prev);
-      setIsEditing(false);
-      showToast('Draft saved');
-      await refreshContent();
-    } catch (e: any) {
-      showToast(e?.message || 'Save failed', 'error');
-    } finally {
-      setActionLoading(null);
-    }
-  }, [id, editDraft, showToast, refreshContent]);
 
   const handleRetry = useCallback(async () => {
     if (!id) return;
@@ -287,27 +262,16 @@ export default function ContentDetailPage() {
           {content.requires_review ? (
             <span className="px-2.5 py-1 text-sm rounded-full bg-amber-50 text-amber-700 font-medium">Needs Review</span>
           ) : null}
-          {content.stage === 'review' && (
-            <Link
-              to={`/content/${content.id}/review`}
-              className="px-4 py-1.5 text-sm font-medium bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition"
-            >
-              ✏ Review Article
-            </Link>
-          )}
+          <Link
+            to={`/content/${content.id}/review`}
+            className="px-4 py-1.5 text-sm font-medium bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition"
+          >
+            ✏️ Edit Article
+          </Link>
         </div>
 
         {/* Actions bar */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
-          {/* Edit — all stages */}
-          <button
-            onClick={handleEdit}
-            disabled={!!actionLoading || isEditing}
-            className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
-          >
-            ✏️ Edit
-          </button>
-
           {/* Failed: Retry */}
           {stage === 'failed' && (
             <button
@@ -483,40 +447,9 @@ export default function ContentDetailPage() {
           ))}
         </div>
         <div className="p-4 sm:p-6">
-          {tab === 'Article' && (
-            isEditing ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">Editing Draft Markdown</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleSaveEdit}
-                      disabled={!!actionLoading}
-                      className="px-4 py-1.5 text-sm font-medium rounded-lg transition bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {actionLoading === 'edit' ? '⏳ Saving...' : '💾 Save'}
-                    </button>
-                    <button
-                      onClick={() => setIsEditing(false)}
-                      className="px-4 py-1.5 text-sm font-medium rounded-lg transition bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  value={editDraft}
-                  onChange={(e) => setEditDraft(e.target.value)}
-                  className="w-full h-[600px] font-mono text-sm border border-gray-300 rounded-lg p-4 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-y"
-                  placeholder="Enter markdown content..."
-                />
-              </div>
-            ) : (
-              <ArticleTab markdown={markdown} />
-            )
-          )}
+          {tab === 'Article' && <ArticleTab markdown={markdown} />}
           {tab === 'Claims' && <ClaimsTab claims={claims} sources={sources} />}
-          {tab === 'Sources' && <SourcesTab sources={sources} />}
+          {tab === 'Sources' && <SourcesTab sources={sources} claims={claims} />}
           {tab === 'Traces' && <EnhancedTracesTab contentId={content.id} runId={content.run_id} fallbackTraces={traces} />}
           {tab === 'Platforms' && <PlatformsTab platforms={platforms} />}
           {tab === 'Meta' && <MetaTab content={content} tags={tags} />}
@@ -597,31 +530,128 @@ function ClaimsTab({ claims, sources }: { claims: Claim[]; sources: Source[] }) 
   );
 }
 
-/* ========== Sources Tab ========== */
-function SourcesTab({ sources }: { sources: Source[] }) {
+/* ========== Sources Tab (grouped by claim) ========== */
+function SourcesTab({ sources, claims }: { sources: Source[]; claims: Claim[] }) {
   if (sources.length === 0) return <EmptyState title="No sources" description="No sources have been collected for this content" />;
+
+  // Build a map of claims by id
+  const claimsById = claims.reduce<Record<string, Claim>>((acc, claim) => {
+    acc[claim.id] = claim;
+    return acc;
+  }, {});
+
+  // Group sources by claim_id
+  const sourcesByClaim: Record<string, Source[]> = {};
+  const uncategorized: Source[] = [];
+
+  sources.forEach((src) => {
+    if (src.claim_id && claimsById[src.claim_id]) {
+      if (!sourcesByClaim[src.claim_id]) sourcesByClaim[src.claim_id] = [];
+      sourcesByClaim[src.claim_id].push(src);
+    } else {
+      uncategorized.push(src);
+    }
+  });
+
+  // Order claim groups by the claim order in the claims array
+  const orderedClaimIds = claims
+    .filter((c) => sourcesByClaim[c.id])
+    .map((c) => c.id);
+
   return (
-    <div className="space-y-3">
-      {sources.map((source) => {
-        const colors = RELIABILITY_COLORS[source.reliability] || RELIABILITY_COLORS.medium;
+    <div className="space-y-6">
+      {orderedClaimIds.map((claimId) => {
+        const claim = claimsById[claimId];
+        const claimSources = sourcesByClaim[claimId];
+        const statusColors = CLAIM_STATUS_COLORS[claim?.status] || CLAIM_STATUS_COLORS.pending;
+        const confidence = Math.round((claim?.confidence ?? 0) * 100);
+
         return (
-          <div key={source.id} className="border border-gray-100 rounded-lg p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <a href={source.url || undefined} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline">
-                  {source.title || source.url || 'Unknown source'}
-                </a>
-                {source.author && <span className="text-xs text-gray-400 ml-2">by {source.author}</span>}
-                {source.snippet && <p className="text-xs text-gray-500 mt-1">{source.snippet}</p>}
-                {source.published_date && <p className="text-xs text-gray-400 mt-1">{formatDate(source.published_date)}</p>}
+          <div key={claimId} className="border border-gray-200 rounded-xl overflow-hidden">
+            {/* Claim header */}
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+              <div className="flex items-start gap-3">
+                <span className="text-base flex-shrink-0 mt-0.5">📌</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-sm font-medium text-gray-900">Claim</span>
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${statusColors.bg} ${statusColors.text} capitalize`}>
+                      {claim?.status || 'pending'}
+                    </span>
+                    <span className="text-xs text-gray-500 tabular-nums">{confidence}% confidence</span>
+                  </div>
+                  <p className="text-sm text-gray-800">{claim?.claim_text || 'Unknown claim'}</p>
+                  {claim?.verification_notes && (
+                    <div className="mt-2 p-2.5 bg-white rounded-lg border border-gray-100 text-xs text-gray-600">
+                      <span className="font-medium text-gray-500">Verification notes: </span>
+                      {claim.verification_notes}
+                    </div>
+                  )}
+                </div>
               </div>
-              <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${colors.bg} ${colors.text} capitalize flex-shrink-0`}>
-                {source.reliability}
-              </span>
+            </div>
+            {/* Sources under this claim */}
+            <div className="divide-y divide-gray-100">
+              {claimSources.map((source) => (
+                <SourceRow key={source.id} source={source} />
+              ))}
             </div>
           </div>
         );
       })}
+
+      {/* Uncategorized sources */}
+      {uncategorized.length > 0 && (
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📎</span>
+              <span className="text-sm font-medium text-gray-700">Uncategorized Sources</span>
+              <span className="text-xs text-gray-400">({uncategorized.length})</span>
+            </div>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {uncategorized.map((source) => (
+              <SourceRow key={source.id} source={source} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---- Source Row (reusable) ---- */
+function SourceRow({ source }: { source: Source }) {
+  const reliabilityColors = RELIABILITY_COLORS[source.reliability] || RELIABILITY_COLORS.medium;
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">📄</span>
+            {source.url ? (
+              <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline truncate">
+                {source.title || source.url}
+              </a>
+            ) : (
+              <span className="text-sm font-medium text-gray-700">{source.title || 'Unknown source'}</span>
+            )}
+            {source.author && <span className="text-xs text-gray-400 flex-shrink-0">by {source.author}</span>}
+          </div>
+          {source.snippet && (
+            <p className="text-xs text-gray-600 mt-1.5 ml-5 bg-gray-50 rounded-md p-2 border border-gray-100">
+              {source.snippet}
+            </p>
+          )}
+          {source.published_date && (
+            <p className="text-xs text-gray-400 mt-1 ml-5">{formatDate(source.published_date)}</p>
+          )}
+        </div>
+        <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${reliabilityColors.bg} ${reliabilityColors.text} capitalize flex-shrink-0`}>
+          {source.reliability || 'medium'}
+        </span>
+      </div>
     </div>
   );
 }
