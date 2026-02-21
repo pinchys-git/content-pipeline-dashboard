@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { fetchContentDetail, fetchTraces, fetchAudit, fetchTracePayload, fetchPipelineStatus } from '../lib/api';
+import { fetchContentDetail, fetchTraces, fetchAudit, fetchTracePayload, fetchPipelineStatus, deleteContent, updateContent, approveContent, rejectContent, resumePipeline } from '../lib/api';
 import type { Content, Claim, Source, Trace, Revision, AuditResponse, AuditTimelineEvent, AuditSummary, TracePayloadResponse } from '../lib/types';
 import { STAGE_COLORS, CLAIM_STATUS_COLORS, RELIABILITY_COLORS, formatDate, formatDatetime, parseJSON, qualityColor } from '../lib/utils';
 import StageBadge from '../components/StageBadge';
@@ -26,6 +26,161 @@ export default function ContentDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Action states
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState('');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [rejectMode, setRejectMode] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  const refreshContent = useCallback(async () => {
+    if (!id) return;
+    try {
+      const data = await fetchContentDetail(id);
+      setContent(data.content);
+      setClaims(data.claims || []);
+      setSources(data.sources || []);
+    } catch { /* ignore */ }
+  }, [id]);
+
+  // Action handlers
+  const handleDelete = useCallback(async () => {
+    if (!id) return;
+    setActionLoading('delete');
+    try {
+      await deleteContent(id);
+      showToast('Content deleted');
+      navigate(-1);
+    } catch (e: any) {
+      showToast(e?.message || 'Delete failed', 'error');
+    } finally {
+      setActionLoading(null);
+      setConfirmingDelete(false);
+    }
+  }, [id, navigate, showToast]);
+
+  const handleEdit = useCallback(() => {
+    if (!content) return;
+    setEditDraft(content.draft_md || content.final_md || '');
+    setIsEditing(true);
+    setTab('Article');
+  }, [content]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!id) return;
+    setActionLoading('edit');
+    try {
+      const updated = await updateContent(id, { draft_md: editDraft } as any);
+      setContent(prev => prev ? { ...prev, ...updated, draft_md: editDraft } : prev);
+      setIsEditing(false);
+      showToast('Draft saved');
+      await refreshContent();
+    } catch (e: any) {
+      showToast(e?.message || 'Save failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [id, editDraft, showToast, refreshContent]);
+
+  const handleRetry = useCallback(async () => {
+    if (!id) return;
+    setActionLoading('retry');
+    try {
+      await resumePipeline(id);
+      showToast('Pipeline restarted');
+      await refreshContent();
+      setIsPolling(true);
+    } catch (e: any) {
+      showToast(e?.message || 'Retry failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [id, showToast, refreshContent]);
+
+  const handleApprove = useCallback(async () => {
+    if (!id) return;
+    setActionLoading('approve');
+    try {
+      await approveContent(id, 'published');
+      showToast('Content approved & published');
+      await refreshContent();
+    } catch (e: any) {
+      showToast(e?.message || 'Approve failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [id, showToast, refreshContent]);
+
+  const handleReject = useCallback(async () => {
+    if (!id || !rejectReason.trim()) return;
+    setActionLoading('reject');
+    try {
+      await rejectContent(id, 'draft', rejectReason.trim());
+      showToast('Content rejected');
+      setRejectMode(false);
+      setRejectReason('');
+      await refreshContent();
+    } catch (e: any) {
+      showToast(e?.message || 'Reject failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [id, rejectReason, showToast, refreshContent]);
+
+  const handleCancel = useCallback(async () => {
+    if (!id) return;
+    if (!window.confirm('Cancel this pipeline run? This will mark it as failed.')) return;
+    setActionLoading('cancel');
+    try {
+      await updateContent(id, { stage: 'failed' } as any);
+      showToast('Pipeline cancelled');
+      setIsPolling(false);
+      await refreshContent();
+    } catch (e: any) {
+      showToast(e?.message || 'Cancel failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [id, showToast, refreshContent]);
+
+  const handlePublishNow = useCallback(async () => {
+    if (!id) return;
+    setActionLoading('publish');
+    try {
+      await approveContent(id, 'published');
+      showToast('Published');
+      await refreshContent();
+    } catch (e: any) {
+      showToast(e?.message || 'Publish failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [id, showToast, refreshContent]);
+
+  const handleUnpublish = useCallback(async () => {
+    if (!id) return;
+    if (!window.confirm('Move this article back to review?')) return;
+    setActionLoading('unpublish');
+    try {
+      await updateContent(id, { stage: 'review' } as any);
+      showToast('Moved back to review');
+      await refreshContent();
+    } catch (e: any) {
+      showToast(e?.message || 'Unpublish failed', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  }, [id, showToast, refreshContent]);
 
   // Initial data load
   useEffect(() => {
@@ -84,8 +239,20 @@ export default function ContentDetailPage() {
   const platforms = parseJSON<Record<string, string>>(content.platforms);
   const tags = parseJSON<string[]>(content.tags);
 
+  const stage = content.stage;
+  const inProgressStages = ['queued', 'research', 'draft', 'verify', 'format', 'edit'];
+
   return (
     <div className="space-y-6">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {toast.message}
+        </div>
+      )}
+
       {/* Back */}
       <button onClick={() => navigate(-1)} className="text-sm text-gray-400 hover:text-gray-600 transition flex items-center gap-1">
         <span>←</span> Back
@@ -128,6 +295,148 @@ export default function ContentDetailPage() {
               ✏ Review Article
             </Link>
           )}
+        </div>
+
+        {/* Actions bar */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {/* Edit — all stages */}
+          <button
+            onClick={handleEdit}
+            disabled={!!actionLoading || isEditing}
+            className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+          >
+            ✏️ Edit
+          </button>
+
+          {/* Failed: Retry */}
+          {stage === 'failed' && (
+            <button
+              onClick={handleRetry}
+              disabled={!!actionLoading}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            >
+              {actionLoading === 'retry' ? '⏳ Retrying...' : '🔄 Retry Pipeline'}
+            </button>
+          )}
+
+          {/* Review: Approve & Reject */}
+          {stage === 'review' && (
+            <>
+              <button
+                onClick={handleApprove}
+                disabled={!!actionLoading}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50"
+              >
+                {actionLoading === 'approve' ? '⏳ Approving...' : '✅ Approve & Publish'}
+              </button>
+              {!rejectMode ? (
+                <button
+                  onClick={() => setRejectMode(true)}
+                  disabled={!!actionLoading}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-orange-50 text-orange-700 hover:bg-orange-100 disabled:opacity-50"
+                >
+                  ❌ Reject
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Rejection reason..."
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300 w-64"
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleReject(); }}
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleReject}
+                    disabled={!rejectReason.trim() || !!actionLoading}
+                    className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50"
+                  >
+                    {actionLoading === 'reject' ? '⏳...' : 'Send'}
+                  </button>
+                  <button
+                    onClick={() => { setRejectMode(false); setRejectReason(''); }}
+                    className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* In-progress: Cancel */}
+          {inProgressStages.includes(stage) && (
+            <button
+              onClick={handleCancel}
+              disabled={!!actionLoading}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+            >
+              {actionLoading === 'cancel' ? '⏳ Cancelling...' : '⏸️ Cancel'}
+            </button>
+          )}
+
+          {/* Scheduled: Publish Now & Cancel */}
+          {stage === 'scheduled' && (
+            <>
+              <button
+                onClick={handlePublishNow}
+                disabled={!!actionLoading}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50"
+              >
+                {actionLoading === 'publish' ? '⏳ Publishing...' : '🚀 Publish Now'}
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={!!actionLoading}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+              >
+                {actionLoading === 'cancel' ? '⏳...' : '❌ Cancel'}
+              </button>
+            </>
+          )}
+
+          {/* Published: Unpublish */}
+          {stage === 'published' && (
+            <button
+              onClick={handleUnpublish}
+              disabled={!!actionLoading}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+            >
+              {actionLoading === 'unpublish' ? '⏳...' : '📝 Unpublish'}
+            </button>
+          )}
+
+          {/* Delete — all stages, always last */}
+          <div className="ml-auto">
+            {!confirmingDelete ? (
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                disabled={!!actionLoading}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
+              >
+                🗑️ Delete
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-red-600">Are you sure? This deletes the article and all traces/claims/sources.</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={!!actionLoading}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {actionLoading === 'delete' ? '⏳...' : 'Confirm Delete'}
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(false)}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg transition bg-gray-100 text-gray-600 hover:bg-gray-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{content.title || 'Untitled'}</h1>
         {content.excerpt && <p className="text-sm text-gray-500 mb-4">{content.excerpt}</p>}
@@ -174,7 +483,38 @@ export default function ContentDetailPage() {
           ))}
         </div>
         <div className="p-4 sm:p-6">
-          {tab === 'Article' && <ArticleTab markdown={markdown} />}
+          {tab === 'Article' && (
+            isEditing ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Editing Draft Markdown</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleSaveEdit}
+                      disabled={!!actionLoading}
+                      className="px-4 py-1.5 text-sm font-medium rounded-lg transition bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {actionLoading === 'edit' ? '⏳ Saving...' : '💾 Save'}
+                    </button>
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="px-4 py-1.5 text-sm font-medium rounded-lg transition bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={editDraft}
+                  onChange={(e) => setEditDraft(e.target.value)}
+                  className="w-full h-[600px] font-mono text-sm border border-gray-300 rounded-lg p-4 focus:outline-none focus:ring-2 focus:ring-blue-300 resize-y"
+                  placeholder="Enter markdown content..."
+                />
+              </div>
+            ) : (
+              <ArticleTab markdown={markdown} />
+            )
+          )}
           {tab === 'Claims' && <ClaimsTab claims={claims} sources={sources} />}
           {tab === 'Sources' && <SourcesTab sources={sources} />}
           {tab === 'Traces' && <EnhancedTracesTab contentId={content.id} runId={content.run_id} fallbackTraces={traces} />}

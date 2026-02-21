@@ -287,3 +287,16 @@ export async function fetchAudit(contentId: string): Promise<AuditResponse> {
 export async function fetchTracePayload(contentId: string, traceId: string): Promise<TracePayloadResponse> {
   return apiFetch<TracePayloadResponse>(`/api/content/${contentId}/trace/${traceId}`);
 }
+
+// CRUD operations
+export async function deleteContent(id: string): Promise<void> {
+  return apiFetch(`/api/content/${id}`, { method: 'DELETE' });
+}
+
+export async function updateContent(id: string, data: Partial<Content>): Promise<Content> {
+  return apiFetch(`/api/content/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function resumePipeline(contentId: string): Promise<any> {
+  return apiFetch(`/api/pipeline/resume`, { method: 'POST', body: JSON.stringify({ content_id: contentId }) });
+}
