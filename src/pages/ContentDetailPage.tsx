@@ -553,6 +553,9 @@ function ClaimsTab({ claims, sources }: { claims: Claim[]; sources: Source[] }) 
                 {claimSources.map((src) => {
                   const srcUrl = src.resolved_url || src.url;
                   const srcTitle = src.page_title || src.title;
+                  const srcDomain = (() => { try { return new URL(srcUrl || src.url || '').hostname.replace(/^www\./, ''); } catch { return null; } })();
+                  // Use real title, fall back to domain, last resort raw URL
+                  const linkText = srcTitle && srcTitle !== srcDomain ? srcTitle : srcDomain || srcUrl;
                   return (
                     <div key={src.id} className="flex items-center gap-2 text-xs">
                       <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
@@ -560,10 +563,13 @@ function ClaimsTab({ claims, sources }: { claims: Claim[]; sources: Source[] }) 
                       }`} />
                       {srcUrl ? (
                         <a href={srcUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline truncate">
-                          {srcTitle || srcUrl}
+                          {linkText}
                         </a>
                       ) : (
-                        <span className="text-gray-500">{srcTitle || 'Unknown source'}</span>
+                        <span className="text-gray-500">{linkText || 'Unknown source'}</span>
+                      )}
+                      {srcTitle && srcDomain && srcTitle !== srcDomain && (
+                        <span className="text-gray-400 flex-shrink-0">({srcDomain})</span>
                       )}
                     </div>
                   );
@@ -722,6 +728,19 @@ function SourceRow({ source }: { source: Source }) {
   const displayUrl = source.resolved_url || source.url;
   const displayDate = source.publish_date || source.published_date;
 
+  // Filter out generic/useless snippets
+  const isUsefulSnippet = source.snippet
+    && source.snippet !== 'Verified via Gemini search grounding'
+    && source.snippet.length > 10;
+
+  // Extract domain for display
+  const domain = (() => {
+    try {
+      const url = new URL(displayUrl || source.url || '');
+      return url.hostname.replace(/^www\./, '');
+    } catch { return null; }
+  })();
+
   return (
     <div className="px-4 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -730,20 +749,24 @@ function SourceRow({ source }: { source: Source }) {
             <span className="text-xs text-gray-400 flex-shrink-0">📄</span>
             {displayUrl ? (
               <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline line-clamp-2">
-                {displayTitle || displayUrl}
+                {displayTitle || domain || displayUrl}
               </a>
             ) : (
               <span className="text-sm font-medium text-gray-700">{displayTitle || 'Unknown source'}</span>
             )}
             {source.author && <span className="text-xs text-gray-400 flex-shrink-0">by {source.author}</span>}
           </div>
+          {/* Show domain separately when we have a real title */}
+          {displayTitle && domain && (
+            <p className="text-xs text-gray-400 mt-0.5 ml-5">{domain}</p>
+          )}
           {source.page_description && (
             <p className="text-xs text-gray-500 mt-1 ml-5 line-clamp-2">{source.page_description}</p>
           )}
           {displayDate && (
             <p className="text-xs text-gray-400 mt-1 ml-5">📅 {formatDate(displayDate)}</p>
           )}
-          {source.snippet && (
+          {isUsefulSnippet && (
             <p className="text-xs text-gray-600 mt-1.5 ml-5 bg-gray-50 rounded-md p-2 border border-gray-100">
               {source.snippet}
             </p>
